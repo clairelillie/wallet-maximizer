@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Credit Card Stack Optimizer
 
-## Getting Started
+MVP web app that recommends an intentional **3–5 card** wallet based on your current cards, spending habits, and preferences. Not a churner tool — focused on simplicity and fee justification.
 
-First, run the development server:
+## Stack
+
+- **Next.js** (App Router)
+- **TypeScript**
+- **Tailwind CSS v4**
+- **shadcn/ui**
+- **Local state only** (no auth / database)
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── app/
+│   ├── layout.tsx          # Root layout + metadata
+│   ├── page.tsx            # Single-page entry
+│   └── globals.css         # Theme + fintech styling
+├── components/
+│   ├── StackOptimizerApp.tsx   # Main client shell
+│   ├── inputs/                 # Cards, spending, preferences
+│   ├── output/                   # Stack, cheat sheet, fee verdict
+│   └── layout/                 # Header
+├── hooks/
+│   └── useOptimizerState.ts    # Local state + memoized optimize
+├── lib/
+│   ├── optimizer.ts            # Core recommendation engine
+│   ├── card-utils.ts           # Multipliers, spend ranking, valuation
+│   └── constants.ts            # Labels, mock catalog, defaults
+└── types/
+    └── index.ts                # Shared TypeScript types
+```
 
-## Learn More
+## How optimization works (MVP)
 
-To learn more about Next.js, take a look at the following resources:
+1. Rank spend categories by monthly amount.
+2. For each top category, **reuse an already-selected card** if its earn rate is equal to, or within **1x** of, the best available in the pool — avoids redundant cards (e.g. Amex Gold for both dining and groceries at 4x).
+3. Only add a new card when no selected card is competitive for that category.
+4. Add catch-all if no card in stack earns ≥2x on general spend.
+5. Travel/premium cards gated by trip frequency and lounge importance (travel also reuses when competitive).
+6. Respect **Keep this card** for portfolio candidates; fill gaps from `MOCK_CARD_CATALOG`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Future improvements
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Area | Enhancement |
+|------|-------------|
+| **Data** | Card database API (T&C, credits, transfer partners) |
+| **Auth** | Save stacks, compare history |
+| **Optimizer** | Linear programming / knapsack for global optimum |
+| **Credits** | User-entered credits + automatic break-even |
+| **Transfers** | Point valuations by redemption type |
+| **Compliance** | Disclaimers, affiliate disclosure, licensed advice boundaries |
+| **UX** | Onboarding wizard, PDF export, mobile PWA |
+| **Testing** | Unit tests for `optimizer.ts` edge cases |
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Private MVP — not financial advice.

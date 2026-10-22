@@ -1,0 +1,24 @@
+---
+description: Use only the local checkout outside iCloud
+alwaysApply: true
+---
+
+# Local repo only
+
+Read, edit, install, and run this project only from:
+
+`/Users/clairelillie/Developer/credit-card-stack-optimizer`
+
+Do not open, edit, install dependencies in, or start a dev server from the iCloud copy:
+
+`/Users/clairelillie/Documents/credit-card-stack-optimizer`
+
+If a task starts in the Documents path, stop and continue from the Developer path instead.
+
+```bash
+# Local checkout — use this
+cd ~/Developer/credit-card-stack-optimizer && npm run dev
+
+# iCloud copy — do not use
+cd ~/Documents/credit-card-stack-optimizer && npm run dev
+```

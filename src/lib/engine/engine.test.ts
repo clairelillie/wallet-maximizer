@@ -1,0 +1,877 @@
+import { describe, expect, it } from "vitest";
+import {
+  catalogToNormalized,
+  getEffectiveMultiplier,
+  normalizeUserCard,
+} from "@/lib/card-utils";
+import { CARD_CATALOG } from "@/catalog";
+import {
+  DEFAULT_PREFERENCES,
+  describeCardLoyaltyPath,
+} from "@/lib/constants";
+import {
+  calculateBenefitPotential,
+  calculatePersonalizedBenefits,
+  dedupeStackBenefits,
+  sumBenefitValues,
+} from "@/lib/engine/benefits";
+import { generateCandidatePool } from "@/lib/engine/candidate-pool";
+import {
+  buildAlternativeSummaries,
+  isBetterOnRewardsThenBenefits,
+  NEAR_TIE_THRESHOLD,
+  optimizeStackSize,
+} from "@/lib/engine/optimize";
+import {
+  assignSpendToStack,
+  calculateStandaloneRewardsValue,
+  sumCategoryRewards,
+} from "@/lib/engine/rewards";
+import {
+  calculateIncrementalValue,
+  calculateStackValue,
+} from "@/lib/engine/stack-value";
+import { optimizeStack } from "@/lib/optimizer";
+import type {
+  MonthlySpending,
+  OptimizerInput,
+  PerkBehaviorAnswers,
+  UserCreditCard,
+} from "@/types";
+
+const spending: MonthlySpending = {
+  dining: 400,
+  grocery: 500,
+  flights: 100,
+  hotels: 75,
+  rentalCars: 25,
+  gas: 150,
+  onlineShopping: 300,
+  other: 400,
+};
+
+const quietHabits: PerkBehaviorAnswers = {
+  loungeVisits: "never",
+  hotelNights: "0",
+  travelCreditLikelihood: "no",
+  checkedBagsPerYear: "0",
+  rideshareMonthly: "0",
+  foodDeliveryMonthly: "0",
+  resyMonthly: "0",
+  streamingMonthly: "0",
+  trustedTravelerStatus: "already-have",
+};
+
+const heavyTravelHabits: PerkBehaviorAnswers = {
+  loungeVisits: "10+",
+  hotelNights: "20+",
+  travelCreditLikelihood: "yes",
+  checkedBagsPerYear: "6-10",
+  rideshareMonthly: "51-100",
+  foodDeliveryMonthly: "51-100",
+  resyMonthly: "51-100",
+  streamingMonthly: "26-50",
+  trustedTravelerStatus: "would-use-reimbursement",
+};
+
+function userCard(
+  name: string,
+  patch: Partial<UserCreditCard> = {}
+): UserCreditCard {
+  const catalog = CARD_CATALOG.find((c) => c.name === name);
+  return {
+    id: patch.id ?? `u-${name}`,
+    catalogId: catalog?.id ?? null,
+    ecosystem: catalog?.ecosystem ?? "chase",
+    name,
+    isCustom: false,
+    annualFee: catalog?.annualFee ?? 0,
+    baseMultiplier: catalog?.baseMultiplier ?? 1,
+    multipliers: { ...(catalog?.multipliers ?? {}) },
+    keepThisCard: false,
+    ...patch,
+  };
+}
+
+function baseInput(patch: Partial<OptimizerInput> = {}): OptimizerInput {
+  return {
+    cards: [],
+    spending,
+    preferences: {
+      ...DEFAULT_PREFERENCES,
+      maxCards: 4,
+      preferredEcosystems: ["flexible"],
+      rewardTypePreference: "no_preference",
+      perkBehaviors: quietHabits,
+    },
+    ...patch,
+  };
+}
+
+describe("rewards calculation", () => {
+  it("assigns each category to the highest multiplier in the stack", () => {
+    const gold = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Gold")!,
+      "gold"
+    );
+    const cffEntry = CARD_CATALOG.find((c) =>
+      c.name.toLowerCase().includes("freedom")
+    )!;
+    const cff = catalogToNormalized(cffEntry, "cff");
+    const assignments = assignSpendToStack([gold, cff], spending);
+    const dining = assignments.find((a) => a.category === "dining")!;
+    expect(dining.cardName).toBe("Amex Gold");
+    expect(dining.multiplier).toBeGreaterThanOrEqual(4);
+    expect(dining.annualSpend).toBe(400 * 12);
+    expect(dining.annualPoints).toBe(Math.round(400 * 12 * dining.multiplier));
+    expect(dining.annualReward).toBe(
+      Math.round((400 * 12 * dining.multiplier * 1) / 100)
+    );
+  });
+
+  it("standalone rewards scale with category multipliers", () => {
+    const gold = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Gold")!,
+      "gold"
+    );
+    const qs = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name.includes("Quicksilver"))!,
+      "qs"
+    );
+    expect(calculateStandaloneRewardsValue(gold, spending)).toBeGreaterThan(
+      calculateStandaloneRewardsValue(qs, spending)
+    );
+  });
+});
+
+describe("benefit personalization", () => {
+  it("values lounge only when the user uses lounges", () => {
+    const plat = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Platinum")!,
+      "plat"
+    );
+    const never = calculatePersonalizedBenefits(plat, quietHabits);
+    const often = calculatePersonalizedBenefits(plat, heavyTravelHabits);
+    expect(
+      never.find((b) => b.perkKind === "loungeAccess")
+    ).toBeUndefined();
+    expect(
+      often.find((b) => b.perkKind === "loungeAccess")?.effectiveValue
+    ).toBeGreaterThan(0);
+  });
+
+  it("benefitPotential keeps high-benefit cards visible under heavy habits", () => {
+    const plat = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Platinum")!,
+      "plat"
+    );
+    expect(calculateBenefitPotential(plat, heavyTravelHabits)).toBeGreaterThan(
+      calculateBenefitPotential(plat, quietHabits)
+    );
+  });
+
+  it("respects benefit overrides", () => {
+    const plat = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Platinum")!,
+      "plat"
+    );
+    const id = `loungeAccess::${plat.name}`;
+    const lines = calculatePersonalizedBenefits(plat, heavyTravelHabits, {
+      [id]: 250,
+    });
+    expect(lines.find((b) => b.id === id)?.effectiveValue).toBe(250);
+  });
+
+  it("emits all six Amex Gold itemized benefits scaled from Benefits answers", () => {
+    const gold = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Gold")!,
+      "gold"
+    );
+    const lines = calculatePersonalizedBenefits(gold, quietHabits);
+    expect(lines).toHaveLength(6);
+    const ids = lines.map((l) => l.id.split("::")[0]).sort();
+    expect(ids).toEqual(
+      [
+        "dining-credit",
+        "dunkin-credit",
+        "hertz-status",
+        "hotel-collection",
+        "resy-credit",
+        "uber-credit",
+      ].sort()
+    );
+    // Quiet profile → no lifestyle spend → $0 captured itemized value.
+    expect(sumBenefitValues(lines)).toBe(0);
+    expect(lines.every((l) => l.perkKind === "itemized")).toBe(true);
+    expect(lines.every((l) => Boolean(l.description))).toBe(true);
+
+    const active = calculatePersonalizedBenefits(gold, heavyTravelHabits);
+    expect(sumBenefitValues(active)).toBeGreaterThan(0);
+    expect(
+      active.find((l) => l.id.startsWith("uber-credit"))?.effectiveValue
+    ).toBeGreaterThan(0);
+  });
+
+  it("Amex Gold benefit override changes effective total", () => {
+    const gold = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Gold")!,
+      "gold"
+    );
+    const id = `uber-credit::${gold.name}`;
+    const lines = calculatePersonalizedBenefits(gold, quietHabits, {
+      [id]: 20,
+    });
+    expect(lines.find((l) => l.id === id)?.effectiveValue).toBe(20);
+    expect(sumBenefitValues(lines)).toBe(20);
+  });
+});
+
+describe("stack-value comparator", () => {
+  it("prefers higher benefits when total stack values are within the near-tie band", () => {
+    const lowerBenefits = {
+      rewardsValue: 1000,
+      benefitsValue: 100,
+      annualFees: 200,
+    };
+    const higherBenefits = {
+      rewardsValue: 1010,
+      benefitsValue: 360,
+      annualFees: 200,
+    };
+    // Stack nets: 900 vs 1170 → higher benefits clearly wins.
+    expect(
+      isBetterOnRewardsThenBenefits(higherBenefits, lowerBenefits)
+    ).toBe(true);
+    expect(
+      isBetterOnRewardsThenBenefits(lowerBenefits, higherBenefits)
+    ).toBe(false);
+  });
+
+  it("prefers a fee card when benefits more than offset the fee", () => {
+    // Mirrors Amex Gold vs SavorOne: lower rewards−fees, much higher benefits.
+    const savorLike = {
+      rewardsValue: 336,
+      benefitsValue: 0,
+      annualFees: 0,
+    };
+    const goldLike = {
+      rewardsValue: 444,
+      benefitsValue: 424,
+      annualFees: 250,
+    };
+    expect(isBetterOnRewardsThenBenefits(goldLike, savorLike)).toBe(true);
+    expect(isBetterOnRewardsThenBenefits(savorLike, goldLike)).toBe(false);
+  });
+
+  it("returns null when rewards and benefits are both tied", () => {
+    const a = { rewardsValue: 800, benefitsValue: 200, annualFees: 95 };
+    const b = { rewardsValue: 800, benefitsValue: 200, annualFees: 95 };
+    expect(isBetterOnRewardsThenBenefits(a, b)).toBeNull();
+    expect(NEAR_TIE_THRESHOLD).toBe(40);
+  });
+});
+
+describe("Amex Gold vs held SavorOne", () => {
+  it("recommends Gold when user will use Uber/Resy/DoorDash credits", () => {
+    const lifestyleHabits: PerkBehaviorAnswers = {
+      ...quietHabits,
+      rideshareMonthly: "51-100",
+      foodDeliveryMonthly: "51-100",
+      resyMonthly: "51-100",
+    };
+    const input = baseInput({
+      cards: [userCard("Capital One SavorOne", { id: "savor" })],
+      spending: {
+        dining: 400,
+        grocery: 500,
+        flights: 25,
+        hotels: 15,
+        rentalCars: 10,
+        gas: 0,
+        onlineShopping: 0,
+        other: 100,
+      },
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 3,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "points",
+        preferredLoyaltyPrograms: ["delta"],
+        rewardsStrategies: ["transferable", "cobranded"],
+        perkBehaviors: lifestyleHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    expect(result.stack.some((c) => c.name === "Amex Gold")).toBe(true);
+    expect(result.netGainVsCurrent).toBeGreaterThan(NEAR_TIE_THRESHOLD);
+    // Savor adds $0 beside Gold — drop it unless must-keep; never call it must-keep.
+    const savor = result.stack.find((c) => c.name === "Capital One SavorOne");
+    if (savor) {
+      expect(savor.whyChosen.toLowerCase()).not.toContain("must-keep");
+    } else {
+      expect(savor).toBeUndefined();
+    }
+  });
+
+  it("does not claim must-keep for a held card that was not marked keep", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One SavorOne", { id: "savor", keepThisCard: false }),
+        userCard("Amex Gold", { id: "gold", keepThisCard: true }),
+      ],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "points",
+        rewardsStrategies: ["transferable"],
+        perkBehaviors: {
+          ...quietHabits,
+          rideshareMonthly: "51-100",
+          foodDeliveryMonthly: "51-100",
+          resyMonthly: "51-100",
+        },
+      },
+    });
+    const result = optimizeStack(input);
+    const savor = result.stack.find((c) => c.name === "Capital One SavorOne");
+    if (savor) {
+      expect(savor.whyChosen.toLowerCase()).not.toContain("must-keep");
+    }
+  });
+});
+
+describe("overlapping benefits", () => {
+  it("counts lounge once across two lounge cards", () => {
+    const plat = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Platinum")!,
+      "plat"
+    );
+    const csr = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name.includes("Sapphire Reserve"))!,
+      "csr"
+    );
+    const raw = [
+      ...calculatePersonalizedBenefits(plat, heavyTravelHabits),
+      ...calculatePersonalizedBenefits(csr, heavyTravelHabits),
+    ];
+    const lounges = raw.filter((b) => b.perkKind === "loungeAccess");
+    expect(lounges.length).toBeGreaterThanOrEqual(2);
+    const deduped = dedupeStackBenefits(raw);
+    expect(deduped.filter((b) => b.perkKind === "loungeAccess")).toHaveLength(
+      1
+    );
+    expect(sumBenefitValues(deduped)).toBeLessThan(sumBenefitValues(raw));
+  });
+});
+
+describe("incremental card value", () => {
+  it("is less than standalone when the wallet already covers a category", () => {
+    const gold = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Gold")!,
+      "gold"
+    );
+    const cffEntry = CARD_CATALOG.find((c) =>
+      c.name.toLowerCase().includes("freedom")
+    )!;
+    const cff = catalogToNormalized(cffEntry, "cff");
+    const standalone = calculateStackValue(
+      [cff],
+      spending,
+      quietHabits
+    ).stackValue;
+    const incremental = calculateIncrementalValue(
+      cff,
+      [gold],
+      spending,
+      quietHabits
+    );
+    expect(incremental).toBeLessThan(standalone);
+  });
+});
+
+describe("must-keep and stack size constraints", () => {
+  it("always includes must-keep cards even if suboptimal", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Chase Freedom Unlimited", { keepThisCard: true, id: "keep-1" }),
+      ],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 3,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "no_preference",
+        perkBehaviors: quietHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    expect(
+      result.stack.some((c) => c.name === "Chase Freedom Unlimited")
+    ).toBe(true);
+    expect(
+      result.stack.find((c) => c.name === "Chase Freedom Unlimited")?.action
+    ).toBe("KEEP");
+  });
+
+  it("returns all must-keeps when they exceed desired size", () => {
+    const keeps = [
+      userCard("Amex Gold", { keepThisCard: true, id: "k1" }),
+      userCard("Chase Sapphire Preferred", { keepThisCard: true, id: "k2" }),
+      userCard("Citi Double Cash", { keepThisCard: true, id: "k3" }),
+      userCard("Capital One Venture X", { keepThisCard: true, id: "k4" }),
+    ];
+    const pool = generateCandidatePool(
+      baseInput({
+        cards: keeps,
+        preferences: {
+          ...DEFAULT_PREFERENCES,
+          maxCards: 3,
+          perkBehaviors: quietHabits,
+        },
+      })
+    );
+    const pick = optimizeStackSize(
+      pool,
+      baseInput({
+        cards: keeps,
+        preferences: {
+          ...DEFAULT_PREFERENCES,
+          maxCards: 3,
+          perkBehaviors: quietHabits,
+        },
+      }),
+      3
+    );
+    expect(pick?.cards.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("does not exceed maxCards when keeps fit", () => {
+    const input = baseInput({
+      cards: [userCard("Amex Gold", { keepThisCard: true, id: "g" })],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 4,
+        perkBehaviors: quietHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    expect(result.stack.length).toBeLessThanOrEqual(4);
+    expect(result.stack.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("does not add a card with $0 incremental value just to fill size", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Amex Gold", { keepThisCard: true, id: "g" }),
+        userCard("Amex Blue Cash Preferred", { keepThisCard: true, id: "bcp" }),
+        userCard("Citi Double Cash", { keepThisCard: true, id: "dc" }),
+      ],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 4,
+        perkBehaviors: quietHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    for (const card of result.stack) {
+      if (card.action === "ADD") {
+        expect(card.incrementalValue).toBeGreaterThan(NEAR_TIE_THRESHOLD);
+      }
+    }
+    // Prefer not padding to 4 when the 4th adds nothing.
+    expect(
+      result.stack.every(
+        (c) => c.action === "KEEP" || c.incrementalValue > 0
+      )
+    ).toBe(true);
+  });
+});
+
+describe("ecosystem constraints", () => {
+  it("keeps must-keep outside preferred ecosystem and filters other candidates", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Amex Gold", { keepThisCard: true, id: "amex-keep" }),
+      ],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 3,
+        preferredEcosystems: ["chase"],
+        rewardTypePreference: "no_preference",
+        perkBehaviors: quietHabits,
+      },
+    });
+    const pool = generateCandidatePool(input);
+    expect(pool.some((c) => c.name === "Amex Gold")).toBe(true);
+    expect(
+      pool.every(
+        (c) =>
+          c.name === "Amex Gold" ||
+          c.ecosystem === "chase" ||
+          c.isFromUserPortfolio
+      )
+    ).toBe(true);
+    const result = optimizeStack(input);
+    expect(result.stack.some((c) => c.name === "Amex Gold")).toBe(true);
+    for (const card of result.stack) {
+      if (card.name === "Amex Gold") continue;
+      const norm = normalizeUserCard(userCard(card.name));
+      expect(norm.ecosystem).toBe("chase");
+    }
+  });
+});
+
+describe("alternative stacks", () => {
+  it("builds 2/3/4/5 summaries with primary marked", () => {
+    const input = baseInput({
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 4,
+        perkBehaviors: quietHabits,
+      },
+    });
+    const pool = generateCandidatePool(input);
+    const alts = buildAlternativeSummaries(pool, input, 4, 1000, 0);
+    expect(alts).toHaveLength(5);
+    expect(alts.every((a) => a.cardCount <= 5)).toBe(true);
+    expect(alts.find((a) => a.isPrimary)?.label).toMatch(/Recommended/);
+    expect(alts.every((a) => a.stack.length === a.cardCount)).toBe(true);
+    expect(alts.every((a) => Array.isArray(a.cheatSheet))).toBe(true);
+  });
+});
+
+describe("optimizeStack end-to-end", () => {
+  it("reports improvement vs empty / current wallet and value parts", () => {
+    const result = optimizeStack(
+      baseInput({
+        cards: [userCard("Citi Double Cash", { keepThisCard: false, id: "dc" })],
+        preferences: {
+          ...DEFAULT_PREFERENCES,
+          maxCards: 4,
+          perkBehaviors: quietHabits,
+        },
+      })
+    );
+    expect(result.stack.length).toBeLessThanOrEqual(4);
+    expect(result.rewardsSubtotal).toBe(sumCategoryRewards(result.cheatSheet));
+    expect(result.netAnnualPosition).toBe(
+      Math.round(
+        result.rewardsSubtotal +
+          result.benefitsSubtotal -
+          result.feesSubtotal
+      )
+    );
+    expect(result.alternativeStacks.length).toBe(5);
+    expect(result.cheatSheet.every((r) => r.annualSpend >= 0)).toBe(true);
+  });
+
+  it("handles no existing cards", () => {
+    const result = optimizeStack(baseInput());
+    expect(result.stack.length).toBeGreaterThan(0);
+    expect(result.stack.length).toBeLessThanOrEqual(4);
+    expect(result.currentNetPosition).toBe(0);
+  });
+});
+
+describe("held wallet retention", () => {
+  it("does not add Freedom Unlimited when SavorOne already covers dining", () => {
+    const input = baseInput({
+      cards: [userCard("Capital One SavorOne", { id: "savor" })],
+      spending: {
+        dining: 400,
+        grocery: 500,
+        flights: 0,
+        hotels: 0,
+        rentalCars: 0,
+        gas: 0,
+        onlineShopping: 0,
+        other: 200,
+      },
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 3,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "cashback",
+        perkBehaviors: quietHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    expect(
+      result.stack.some((c) => c.name === "Chase Freedom Unlimited")
+    ).toBe(false);
+    expect(
+      result.stack.some((c) => c.name === "Capital One SavorOne")
+    ).toBe(true);
+    expect(result.netGainVsCurrent).toBeGreaterThanOrEqual(-NEAR_TIE_THRESHOLD);
+  });
+
+  it("keeps SavorOne when Freedom Unlimited would only marginally improve", () => {
+    const input = baseInput({
+      cards: [userCard("Capital One SavorOne", { id: "savor" })],
+      spending: {
+        dining: 400,
+        grocery: 500,
+        flights: 0,
+        hotels: 0,
+        rentalCars: 0,
+        gas: 0,
+        onlineShopping: 0,
+        other: 50,
+      },
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "cashback",
+        rewardsStrategies: ["no_preference"],
+        perkBehaviors: quietHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    expect(
+      result.stack.some((c) => c.name === "Capital One SavorOne")
+    ).toBe(true);
+  });
+});
+
+describe("airline points path copy", () => {
+  it("describes Amex Gold transfer to Delta", () => {
+    const gold = CARD_CATALOG.find((c) => c.name === "Amex Gold")!;
+    const path = describeCardLoyaltyPath(
+      gold,
+      ["american", "delta"],
+      ["transferable"]
+    );
+    expect(path).toMatch(/Transfer Amex Membership Rewards/);
+    expect(path).toMatch(/Delta/);
+    expect(path).not.toMatch(/American/);
+  });
+
+  it("explains Amex portal booking when there is no transfer path to AA/United", () => {
+    const gold = CARD_CATALOG.find((c) => c.name === "Amex Gold")!;
+    const path = describeCardLoyaltyPath(
+      gold,
+      ["american", "united"],
+      ["transferable", "portal"]
+    );
+    expect(path).toMatch(/can't transfer/i);
+    expect(path).toMatch(/Amex Membership Rewards/);
+    expect(path).toMatch(/Amex Travel portal/);
+    expect(path).toMatch(/American/);
+    expect(path).toMatch(/United/);
+  });
+
+  it("attaches loyaltyPath on recommended stack cards when airlines are set", () => {
+    const input = baseInput({
+      cards: [],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 3,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "points",
+        preferredLoyaltyPrograms: ["american", "delta"],
+        rewardsStrategies: ["transferable"],
+        perkBehaviors: quietHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    const withPath = result.stack.filter((c) => c.loyaltyPath);
+    expect(withPath.length).toBeGreaterThan(0);
+    expect(
+      withPath.some(
+        (c) =>
+          c.loyaltyPath?.includes("Transfer") ||
+          c.loyaltyPath?.includes("Earns")
+      )
+    ).toBe(true);
+  });
+});
+
+describe("mixed rewards strategies", () => {
+  it("keeps Delta-capable cards when transferable+cobranded and Delta preferred", () => {
+    const input = baseInput({
+      cards: [],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 3,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "points",
+        preferredLoyaltyPrograms: ["delta"],
+        rewardsStrategies: ["transferable", "cobranded"],
+        perkBehaviors: quietHabits,
+      },
+    });
+    const pool = generateCandidatePool(input);
+    expect(pool.some((c) => c.name === "Amex Gold")).toBe(true);
+    // No Delta path and portal not allowed → excluded.
+    expect(pool.some((c) => c.name === "Capital One Venture X")).toBe(false);
+  });
+
+  it("excludes cards with no American path when AA preferred and portal disallowed", () => {
+    const input = baseInput({
+      cards: [],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 3,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "points",
+        preferredLoyaltyPrograms: ["american"],
+        rewardsStrategies: ["transferable", "cobranded"],
+        perkBehaviors: quietHabits,
+      },
+    });
+    const pool = generateCandidatePool(input);
+    expect(pool.some((c) => c.name === "Amex Gold")).toBe(false);
+    expect(pool.some((c) => c.name === "Capital One Venture X")).toBe(false);
+    expect(
+      pool.some(
+        (c) =>
+          c.name === "Citi Strata Premier" ||
+          c.name === "Citi AAdvantage Platinum Select"
+      )
+    ).toBe(true);
+
+    const result = optimizeStack(input);
+    expect(result.stack.length).toBeGreaterThan(0);
+    for (const card of result.stack) {
+      if (card.name === "Capital One SavorOne") continue; // cash-back OK
+      const catalog = CARD_CATALOG.find((x) => x.name === card.name);
+      expect(
+        catalog?.directEarnPrograms?.includes("american") ||
+          catalog?.transferPartners?.includes("american") ||
+          catalog?.rewardType === "cashback"
+      ).toBe(true);
+    }
+  });
+
+  it("excludes portal-only strategies when portal is disallowed", () => {
+    const input = baseInput({
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "points",
+        preferredLoyaltyPrograms: [],
+        rewardsStrategies: ["cobranded"],
+        perkBehaviors: quietHabits,
+      },
+    });
+    const pool = generateCandidatePool(input);
+    expect(pool.some((c) => c.name === "United Explorer")).toBe(true);
+    // Amex Gold is transferable, not cobranded — disallowed.
+    expect(pool.some((c) => c.name === "Amex Gold")).toBe(false);
+  });
+
+  it("keeps cash-back category cards eligible beside Delta preference", () => {
+    const input = baseInput({
+      cards: [userCard("Capital One SavorOne", { id: "savor" })],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 3,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "no_preference",
+        preferredLoyaltyPrograms: ["delta"],
+        rewardsStrategies: ["transferable", "cobranded"],
+        perkBehaviors: quietHabits,
+      },
+    });
+    const pool = generateCandidatePool(input);
+    expect(pool.some((c) => c.name === "Capital One SavorOne")).toBe(true);
+    expect(pool.some((c) => c.name === "Amex Gold")).toBe(true);
+  });
+});
+
+describe("travel spend subcategories", () => {
+  it("uses portal rates for flights, hotels, and rental cars when willing", () => {
+    const csr = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Chase Sapphire Reserve")!,
+      "csr"
+    );
+    expect(
+      getEffectiveMultiplier(csr, "flights", { willingToUseTravelPortal: true })
+    ).toBe(8);
+    expect(
+      getEffectiveMultiplier(csr, "hotels", { willingToUseTravelPortal: true })
+    ).toBe(8);
+    expect(
+      getEffectiveMultiplier(csr, "rentalCars", {
+        willingToUseTravelPortal: true,
+      })
+    ).toBe(8);
+  });
+
+  it("uses direct rates when not willing to use travel portals", () => {
+    const csr = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Chase Sapphire Reserve")!,
+      "csr"
+    );
+    expect(
+      getEffectiveMultiplier(csr, "flights", {
+        willingToUseTravelPortal: false,
+      })
+    ).toBe(4);
+    expect(
+      getEffectiveMultiplier(csr, "hotels", {
+        willingToUseTravelPortal: false,
+      })
+    ).toBe(4);
+    expect(
+      getEffectiveMultiplier(csr, "rentalCars", {
+        willingToUseTravelPortal: false,
+      })
+    ).toBe(4);
+  });
+
+  it("falls back to flat travel multiplier for all travel subcategories", () => {
+    const plat = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Platinum")!,
+      "plat"
+    );
+    expect(getEffectiveMultiplier(plat, "flights")).toBe(5);
+    expect(getEffectiveMultiplier(plat, "hotels")).toBe(5);
+    expect(getEffectiveMultiplier(plat, "rentalCars")).toBe(5);
+  });
+
+  it("assigns flights, hotels, and rental cars as separate rows", () => {
+    const csr = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Chase Sapphire Reserve")!,
+      "csr"
+    );
+    const lines = assignSpendToStack([csr], spending, {
+      willingToUseTravelPortal: true,
+    });
+    const byCat = Object.fromEntries(lines.map((l) => [l.category, l]));
+    expect(byCat.flights?.monthlySpend).toBe(100);
+    expect(byCat.hotels?.monthlySpend).toBe(75);
+    expect(byCat.rentalCars?.monthlySpend).toBe(25);
+    expect(byCat.flights?.multiplier).toBe(8);
+    expect(byCat.hotels?.label).toBe("Hotels");
+  });
+
+  it("uses per-vertical portal rates for Capital One Venture X", () => {
+    const vx = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Capital One Venture X")!,
+      "vx"
+    );
+    expect(
+      getEffectiveMultiplier(vx, "flights", { willingToUseTravelPortal: true })
+    ).toBe(5);
+    expect(
+      getEffectiveMultiplier(vx, "hotels", { willingToUseTravelPortal: true })
+    ).toBe(10);
+    expect(
+      getEffectiveMultiplier(vx, "rentalCars", {
+        willingToUseTravelPortal: true,
+      })
+    ).toBe(10);
+    expect(
+      getEffectiveMultiplier(vx, "flights", {
+        willingToUseTravelPortal: false,
+      })
+    ).toBe(2);
+    expect(
+      getEffectiveMultiplier(vx, "hotels", {
+        willingToUseTravelPortal: false,
+      })
+    ).toBe(2);
+  });
+});

@@ -1,0 +1,117 @@
+import type { CatalogCardDefinition } from "@/types";
+
+export const AMEX_CARDS: CatalogCardDefinition[] = [
+  {
+    id: "amex-platinum",
+    name: "Amex Platinum",
+    annualFee: 895,
+    baseMultiplier: 1,
+    multipliers: { travel: 5 },
+    transferPartners: ["delta", "jetblue", "alaska", "marriott", "hilton"],
+    ecosystem: "amex",
+    rewardType: "points",
+    isPremium: true,
+    hasLoungeAccess: true,
+    perks: {
+      loungeAccess: { faceValue: 550, softWeight: 8 },
+      trustedTravelerCredit: { faceValue: 24 },
+      travelCredit: { faceValue: 400 },
+      eliteStatus: { softWeight: 6 },
+    },
+  },
+  {
+    id: "amex-gold",
+    name: "Amex Gold",
+    annualFee: 250,
+    baseMultiplier: 1,
+    multipliers: { dining: 4, grocery: 4 },
+    transferPartners: ["delta", "jetblue", "alaska", "marriott", "hilton"],
+    ecosystem: "amex",
+    rewardType: "points",
+    isPremium: false,
+    hasLoungeAccess: false,
+    itemizedBenefits: [
+      {
+        id: "uber-credit",
+        label: "Uber / Uber Eats credit",
+        description:
+          "$10 per month in Uber and Uber Eats credits. Unused monthly credits do not roll over.",
+        maxAnnualValue: 120,
+        defaultEstimate: 90,
+      },
+      {
+        id: "dining-credit",
+        label: "Dining credit",
+        description:
+          "$10 per month at Grubhub, Seamless, Wonder, Buffalo Wild Wings, Five Guys, or The Cheesecake Factory.",
+        maxAnnualValue: 120,
+        defaultEstimate: 90,
+      },
+      {
+        id: "resy-credit",
+        label: "Resy credit",
+        description: "$50 semi-annual Resy credit ($100/year if fully used).",
+        maxAnnualValue: 100,
+        defaultEstimate: 50,
+      },
+      {
+        id: "dunkin-credit",
+        label: "Dunkin' credit",
+        description: "$7 per month Dunkin' credit ($84/year if fully used).",
+        maxAnnualValue: 84,
+        defaultEstimate: 42,
+      },
+      {
+        id: "hotel-collection",
+        label: "Hotel Collection credit",
+        description:
+          "$100 credit on prepaid Hotel Collection bookings of 2+ nights.",
+        maxAnnualValue: 100,
+        defaultEstimate: 50,
+      },
+      {
+        id: "hertz-status",
+        label: "Hertz 5 Star elite status",
+        description:
+          "Complimentary Hertz 5 Star status — estimate of personal value (not a statement credit).",
+        maxAnnualValue: 100,
+        defaultEstimate: 40,
+      },
+    ],
+  },
+  {
+    id: "delta-skymiles-gold",
+    name: "Delta SkyMiles Gold",
+    annualFee: 150,
+    baseMultiplier: 1,
+    multipliers: { dining: 2, grocery: 2, travel: 2 },
+    directEarnPrograms: ["delta"],
+    ecosystem: "amex",
+    rewardType: "points",
+    isPremium: false,
+    hasLoungeAccess: false,
+  },
+  {
+    id: "amex-blue-cash-preferred",
+    name: "Amex Blue Cash Preferred",
+    annualFee: 95,
+    baseMultiplier: 1,
+    multipliers: { grocery: 6, gas: 3 },
+    ecosystem: "amex",
+    rewardType: "cashback",
+    isPremium: false,
+    hasLoungeAccess: false,
+    // Streaming credit exists but left unset pending issuer-terms verification
+  },
+  {
+    id: "amex-blue-cash-everyday",
+    name: "Amex Blue Cash Everyday",
+    annualFee: 0,
+    baseMultiplier: 1,
+    multipliers: { grocery: 3, gas: 3, onlineShopping: 3 },
+    ecosystem: "amex",
+    rewardType: "cashback",
+    isPremium: false,
+    hasLoungeAccess: false,
+  },
+];

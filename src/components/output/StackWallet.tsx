@@ -202,6 +202,19 @@ const LEATHER_INNER =
 const CARD_PEEK = 30;
 /** Full plastic card height (px). */
 const CARD_BODY = 92;
+/** Top padding inside each wallet panel, kept in sync with the panel layout. */
+const PANEL_TOP_PAD = 16;
+/** Clearance between a fully extracted card and the top edge of the wallet. */
+const CARD_PULL_GAP = 18;
+/** Room above the extracted card so it does not sit flush against content above. */
+const PULL_HEADROOM = 12;
+const CARD_MOTION =
+  "transform 380ms cubic-bezier(0.22, 1, 0.36, 1), filter 380ms ease";
+
+/** Move a card from its slot to a resting place fully above the leather. */
+function pullOutTranslate(slotTop: number): number {
+  return -(slotTop + CARD_BODY + PANEL_TOP_PAD + CARD_PULL_GAP);
+}
 
 function WalletPanel({
   side,
@@ -258,7 +271,10 @@ function WalletPanel({
         }}
       />
 
-      <div className="relative z-10 h-full px-2.5 pb-3 pt-4 sm:px-3">
+      <div
+        className="relative z-10 h-full px-2.5 pb-3 sm:px-3"
+        style={{ paddingTop: PANEL_TOP_PAD }}
+      >
         {n === 0 ? (
           <div
             className="flex h-full min-h-[9rem] flex-col justify-between rounded-md px-2 py-3"
@@ -316,14 +332,14 @@ function WalletPanel({
                   style={{
                     top,
                     height: CARD_BODY,
-                    // Later cards layer above earlier ones so only name strips show;
-                    // selected lifts above the leather pocket too.
+                    // Later cards layer above earlier ones so only name strips show.
+                    // The selected card paints above the pocket while it exits.
                     zIndex: isSelected ? 40 : 10 + index,
-                    transform: `translateY(${isSelected ? -72 : 0}px) scale(${
-                      isSelected ? 1.04 : 1
-                    })`,
-                    transition:
-                      "transform 380ms cubic-bezier(0.22, 1, 0.36, 1), filter 380ms ease",
+                    transform: `translateY(${
+                      isSelected ? pullOutTranslate(top) : 0
+                    }px) scale(${isSelected ? 1.03 : 1})`,
+                    transformOrigin: isSelected ? "center bottom" : "center",
+                    transition: CARD_MOTION,
                     filter: isSelected
                       ? "drop-shadow(0 16px 20px rgba(20,12,8,0.4))"
                       : "drop-shadow(0 2px 5px rgba(20,12,8,0.28))",
@@ -390,8 +406,11 @@ function BifoldWallet({
 }) {
   return (
     <div className="mx-auto w-full max-w-lg select-none">
-      {/* Lift room for a pulled-out card */}
-      <div className="relative pt-16 sm:pt-20">
+      {/* Lift room so the selected card can sit fully above the wallet */}
+      <div
+        className="relative"
+        style={{ paddingTop: CARD_BODY + CARD_PULL_GAP + PULL_HEADROOM }}
+      >
         <div
           className="relative flex overflow-visible rounded-[1.2rem] shadow-[0_20px_40px_-16px_rgba(40,24,12,0.55)]"
           role="listbox"
@@ -434,7 +453,7 @@ function BifoldWallet({
           Your recommended stack
         </p>
         <p className="mt-1 text-center text-xs text-muted-foreground">
-          Tap any name tab on the right — each card peeks from its own slot.
+          Tap a card to pull it fully out. The others stay in their slots.
         </p>
       </div>
     </div>

@@ -62,7 +62,7 @@ function ChoiceButton({
       className={cn(
         "rounded-xl border px-4 py-3.5 text-left text-sm font-semibold transition-colors",
         selected
-          ? "border-primary bg-gain-soft text-foreground dark:border-primary dark:bg-gain-soft/40"
+          ? "border-brand bg-brand-soft text-foreground"
           : "border-border/70 bg-background hover:border-foreground/20",
         className
       )}
@@ -408,7 +408,7 @@ export function PreferencesStep({
                     className={cn(
                       "flex cursor-pointer gap-3 rounded-xl border px-4 py-3.5 transition-colors",
                       checked
-                        ? "border-primary bg-gain-soft dark:border-primary dark:bg-gain-soft/40"
+                        ? "border-brand bg-brand-soft"
                         : "border-border/70 bg-background hover:border-foreground/20"
                     )}
                   >

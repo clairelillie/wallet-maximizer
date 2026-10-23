@@ -1,9 +1,7 @@
 import {
-  PERK_KIND_LABELS,
   annualFromMonthlyBucket,
   hotelNightsCapture,
   loungeCapture,
-  streamingCapture,
   travelCreditCapture,
   trustedTravelerCapture,
 } from "@/lib/perk-values";
@@ -14,10 +12,12 @@ import {
 import type {
   BenefitAssessment,
   BenefitOverrides,
-  CardPerkKind,
-  CardPerks,
+  BenefitStackGroup,
+  BenefitValueDriver,
+  CatalogBenefit,
   CheckedBagsBucket,
-  ItemizedCardBenefit,
+  MonthlySpendBucket,
+  MonthlySpendBucketCap100,
   NormalizedCard,
   PerkBehaviorAnswers,
   PerkCreditLine,
@@ -32,167 +32,154 @@ const CHECKED_BAG_SEGMENTS: Record<CheckedBagsBucket, number> = {
   "10+": 12,
 };
 
-/** Benefits that should only count once across a whole stack. */
-const STACK_UNIQUE_BENEFITS: CardPerkKind[] = [
-  "loungeAccess",
-  "trustedTravelerCredit",
-  "phoneProtection",
-  "streamingCredit",
-  "eliteStatus",
-  "hotelCredit",
-];
+const SPEND_DRIVERS = new Set<BenefitValueDriver>([
+  "rideshare",
+  "foodDelivery",
+  "resy",
+  "streaming",
+]);
 
-function catalogEntry(card: Pick<NormalizedCard, "name" | "catalogId">) {
+function catalogBenefits(
+  card: Pick<NormalizedCard, "name" | "catalogId">
+): CatalogBenefit[] {
   return (
-    findCatalogCardById(card.catalogId) ?? findCatalogCardByName(card.name)
+    (
+      findCatalogCardById(card.catalogId) ?? findCatalogCardByName(card.name)
+    )?.benefits ?? []
   );
 }
 
-function catalogPerks(
-  card: Pick<NormalizedCard, "name" | "catalogId">
-): CardPerks | undefined {
-  return catalogEntry(card)?.perks;
+function spendBucket(
+  driver: BenefitValueDriver,
+  behaviors: PerkBehaviorAnswers
+): MonthlySpendBucket | MonthlySpendBucketCap100 {
+  switch (driver) {
+    case "rideshare":
+      return behaviors.rideshareMonthly;
+    case "foodDelivery":
+      return behaviors.foodDeliveryMonthly;
+    case "resy":
+      return behaviors.resyMonthly;
+    case "streaming":
+      return behaviors.streamingMonthly;
+    default:
+      return "0";
+  }
 }
 
-function catalogItemizedBenefits(
-  card: Pick<NormalizedCard, "name" | "catalogId">
-): ItemizedCardBenefit[] | undefined {
-  return catalogEntry(card)?.itemizedBenefits;
+function captureForDriver(
+  driver: BenefitValueDriver,
+  behaviors: PerkBehaviorAnswers
+): number {
+  switch (driver) {
+    case "loungeVisits":
+      return loungeCapture(behaviors.loungeVisits);
+    case "hotelNights":
+      return hotelNightsCapture(behaviors.hotelNights);
+    case "travelCredit":
+      return travelCreditCapture(behaviors.travelCreditLikelihood);
+    case "trustedTraveler":
+      return trustedTravelerCapture(behaviors.trustedTravelerStatus);
+    default:
+      return 0;
+  }
 }
 
 function usageAssumption(
-  kind: CardPerkKind,
-  behaviors: PerkBehaviorAnswers,
-  utilization: number
+  benefit: CatalogBenefit,
+  behaviors: PerkBehaviorAnswers
 ): string {
-  switch (kind) {
-    case "loungeAccess":
+  switch (benefit.valuedBy) {
+    case "manual":
+      return "Add a value only if you would use this";
+    case "included":
+      return "Included while you hold the card";
+    case "loungeVisits":
       return `${behaviors.loungeVisits} lounge visits/year`;
-    case "hotelCredit":
-    case "eliteStatus":
+    case "hotelNights":
       return `${behaviors.hotelNights} hotel nights/year`;
-    case "trustedTravelerCredit":
+    case "trustedTraveler":
       return behaviors.trustedTravelerStatus === "would-use-reimbursement"
         ? "Would use TSA PreCheck / Global Entry reimbursement"
         : behaviors.trustedTravelerStatus === "already-have"
           ? "Already have TSA/GE — credit unused"
           : "Doesn't need TSA/GE credit";
     case "travelCredit":
-      return `${Math.round(utilization * 100)}% expected travel-credit utilization`;
-    case "phoneProtection":
-      return "Phone protection not assessed on Benefits page";
-    case "streamingCredit":
+      return behaviors.travelCreditLikelihood === "yes"
+        ? "Likely to use this travel credit"
+        : behaviors.travelCreditLikelihood === "maybe"
+          ? "Might use this travel credit"
+          : "Unlikely to use this travel credit";
+    case "streaming":
       return `Streaming spend: ${behaviors.streamingMonthly}/month`;
-    case "itemized":
-      return "Based on your Benefits answers";
+    case "rideshare":
+      return `Rideshare spend: ${behaviors.rideshareMonthly}/month`;
+    case "foodDelivery":
+      return `Food delivery spend: ${behaviors.foodDeliveryMonthly}/month`;
+    case "resy":
+      return `Resy spend: ${behaviors.resyMonthly}/month`;
+    case "checkedBags":
+      return `${behaviors.checkedBagsPerYear} checked bags/year`;
     default:
       return "Based on your Benefits answers";
   }
 }
 
-function captureForKind(
-  kind: CardPerkKind,
+/** Personalized annual estimate for one catalog credit. Manual credits start at $0. */
+export function estimateCatalogBenefit(
+  benefit: CatalogBenefit,
   behaviors: PerkBehaviorAnswers
 ): number {
-  switch (kind) {
-    case "loungeAccess":
-      return loungeCapture(behaviors.loungeVisits);
-    case "hotelCredit":
-    case "eliteStatus":
-      return hotelNightsCapture(behaviors.hotelNights);
-    case "trustedTravelerCredit":
-      return trustedTravelerCapture(behaviors.trustedTravelerStatus);
-    case "travelCredit":
-      return travelCreditCapture(behaviors.travelCreditLikelihood);
-    case "phoneProtection":
-      return 0;
-    case "streamingCredit":
-      return streamingCapture(behaviors.streamingMonthly);
-    default:
-      return 0;
-  }
-}
+  const cap = benefit.maxAnnualValue;
+  const basis = benefit.estimateBasis ?? cap;
 
-/** Personalized annual estimate for an itemized catalog benefit. */
-export function estimateItemizedBenefit(
-  benefit: ItemizedCardBenefit,
-  behaviors: PerkBehaviorAnswers
-): number {
-  let estimate = benefit.defaultEstimate;
-
-  switch (benefit.id) {
-    case "uber-credit":
-      estimate = annualFromMonthlyBucket(behaviors.rideshareMonthly);
-      break;
-    case "dining-credit":
-      estimate = annualFromMonthlyBucket(behaviors.foodDeliveryMonthly);
-      break;
-    case "resy-credit":
-      estimate = annualFromMonthlyBucket(behaviors.resyMonthly);
-      break;
-    case "hotel-collection":
-    case "citi-hotel-benefit":
-      estimate = Math.round(
-        benefit.maxAnnualValue * hotelNightsCapture(behaviors.hotelNights)
-      );
-      break;
-    case "dunkin-credit":
-      // No dedicated Dunkin question — keep a modest share of food delivery.
-      estimate = Math.min(
-        benefit.maxAnnualValue,
-        Math.round(annualFromMonthlyBucket(behaviors.foodDeliveryMonthly) * 0.15)
-      );
-      break;
-    case "hertz-status":
-      estimate = Math.round(
-        benefit.defaultEstimate *
-          Math.max(
-            loungeCapture(behaviors.loungeVisits),
-            hotelNightsCapture(behaviors.hotelNights)
-          )
-      );
-      break;
-    case "aa-free-checked-bag": {
-      // Domestic AA first-bag fee is typically ~$40 one-way.
-      const segments = CHECKED_BAG_SEGMENTS[behaviors.checkedBagsPerYear] ?? 0;
-      estimate = segments * 40;
-      break;
-    }
-    case "aa-preferred-boarding": {
-      // Convenience value scales with how often the user checks bags (AA flying proxy).
-      const segments = CHECKED_BAG_SEGMENTS[behaviors.checkedBagsPerYear] ?? 0;
-      const intensity = Math.min(1, segments / 8);
-      estimate = Math.round(benefit.maxAnnualValue * intensity);
-      break;
-    }
-    default:
-      break;
+  if (benefit.valuedBy === "manual") return 0;
+  if (benefit.valuedBy === "included") {
+    return Math.max(0, Math.min(cap, Math.round(basis)));
   }
 
-  return Math.max(
-    0,
-    Math.min(benefit.maxAnnualValue, Math.round(estimate))
-  );
+  if (SPEND_DRIVERS.has(benefit.valuedBy)) {
+    const annual = annualFromMonthlyBucket(
+      spendBucket(benefit.valuedBy, behaviors)
+    );
+    const share = benefit.spendShare ?? 1;
+    return Math.max(0, Math.min(cap, Math.round(annual * share)));
+  }
+
+  if (benefit.valuedBy === "checkedBags") {
+    const segments = CHECKED_BAG_SEGMENTS[behaviors.checkedBagsPerYear] ?? 0;
+    if (benefit.segmentScale && benefit.segmentScale > 0) {
+      const intensity = Math.min(1, segments / benefit.segmentScale);
+      return Math.max(0, Math.min(cap, Math.round(basis * intensity)));
+    }
+    const perSegment = benefit.perSegmentValue ?? 40;
+    return Math.max(0, Math.min(cap, Math.round(segments * perSegment)));
+  }
+
+  const capture = captureForDriver(benefit.valuedBy, behaviors);
+  return Math.max(0, Math.min(cap, Math.round(basis * capture)));
 }
 
-function assessmentsFromItemized(
+function assessmentsFromCatalog(
   card: NormalizedCard,
-  itemized: ItemizedCardBenefit[],
+  benefits: CatalogBenefit[],
   behaviors: PerkBehaviorAnswers,
   overrides: BenefitOverrides
 ): BenefitAssessment[] {
-  return itemized.map((benefit) => {
+  return benefits.map((benefit) => {
     const id = `${benefit.id}::${card.name}`;
-    const estimatedValue = estimateItemizedBenefit(benefit, behaviors);
+    const estimatedValue = estimateCatalogBenefit(benefit, behaviors);
     const override = overrides[id];
     const effectiveValue =
       override != null && Number.isFinite(override)
-        ? Math.max(0, Math.round(override))
+        ? Math.max(0, Math.min(benefit.maxAnnualValue, Math.round(override)))
         : estimatedValue;
 
     return {
       id,
-      perkKind: "itemized" as const,
+      valuedBy: benefit.valuedBy,
+      stackRule: benefit.stackRule,
+      stackGroup: benefit.stackGroup,
       cardName: card.name,
       label: benefit.label,
       description: benefit.description,
@@ -201,143 +188,154 @@ function assessmentsFromItemized(
         benefit.maxAnnualValue > 0
           ? Math.min(1, estimatedValue / benefit.maxAnnualValue)
           : 0,
-      usageAssumption: "Based on your Benefits answers — edit if needed",
+      usageAssumption: usageAssumption(benefit, behaviors),
       estimatedValue,
       effectiveValue,
       isEditable: true,
+      choiceGroup: benefit.choiceGroup,
+      choiceOption: benefit.choiceOption,
+      choiceOptionLabel: benefit.choiceOptionLabel,
     };
   });
 }
 
 /**
+ * A card can offer alternative benefit packages. Keep every line visible,
+ * and add only the package with the higher total. Ties stay with the
+ * package listed first.
+ */
+export function applyBenefitChoices(
+  benefits: BenefitAssessment[]
+): BenefitAssessment[] {
+  const groups = new Map<string, BenefitAssessment[]>();
+  for (const benefit of benefits) {
+    if (!benefit.choiceGroup || !benefit.choiceOption) continue;
+    const key = `${benefit.cardName}\0${benefit.choiceGroup}`;
+    const list = groups.get(key) ?? [];
+    list.push(benefit);
+    groups.set(key, list);
+  }
+
+  const excluded = new Map<string, string>();
+  for (const list of groups.values()) {
+    const optionOrder: string[] = [];
+    const totals = new Map<string, number>();
+    for (const benefit of list) {
+      const option = benefit.choiceOption!;
+      if (!totals.has(option)) {
+        optionOrder.push(option);
+        totals.set(option, 0);
+      }
+      totals.set(option, (totals.get(option) ?? 0) + benefit.effectiveValue);
+    }
+    let winner = optionOrder[0];
+    for (const option of optionOrder.slice(1)) {
+      if ((totals.get(option) ?? 0) > (totals.get(winner) ?? 0)) {
+        winner = option;
+      }
+    }
+    const winnerLabel =
+      list.find((benefit) => benefit.choiceOption === winner)
+        ?.choiceOptionLabel ?? "The other option";
+    for (const benefit of list) {
+      if (benefit.choiceOption === winner) continue;
+      excluded.set(
+        benefit.id,
+        `Only one option is added. ${winnerLabel} is the one counted.`
+      );
+    }
+  }
+
+  if (excluded.size === 0) return benefits;
+  return benefits.map((benefit) => {
+    const exclusionNote = excluded.get(benefit.id);
+    if (!exclusionNote) return benefit;
+    return { ...benefit, countsInStack: false, exclusionNote };
+  });
+}
+
+/**
  * Stage 1.5 — rough benefit potential so high-benefit cards aren't
- * dropped before combinatorial search.
+ * dropped before combinatorial search. Manual credits stay at $0 here.
  */
 export function calculateBenefitPotential(
   card: NormalizedCard,
   behaviors: PerkBehaviorAnswers
 ): number {
-  const itemized = catalogItemizedBenefits(card);
-  if (itemized && itemized.length > 0) {
-    return Math.round(
-      itemized.reduce(
-        (sum, b) => sum + estimateItemizedBenefit(b, behaviors),
-        0
-      )
-    );
-  }
-
-  const perks = catalogPerks(card);
-  if (!perks) return 0;
-  let potential = 0;
-  for (const kind of Object.keys(perks) as CardPerkKind[]) {
-    const spec = perks[kind];
-    if (!spec) continue;
-    const relevance = captureForKind(kind, behaviors);
-    if (relevance <= 0) continue;
-    if (spec.faceValue != null) potential += spec.faceValue * relevance;
-    if (spec.softWeight != null) potential += spec.softWeight * 25 * relevance;
-  }
-  return Math.round(potential);
+  return sumBenefitValues(
+    calculatePersonalizedBenefits(card, behaviors)
+  );
 }
 
-/** Stage 2 — personalized benefit assessments for one card. */
+/** Stage 2 — personalized benefit assessments for one card. $0 lines stay visible. */
 export function calculatePersonalizedBenefits(
   card: NormalizedCard,
   behaviors: PerkBehaviorAnswers,
   overrides: BenefitOverrides = {}
 ): BenefitAssessment[] {
-  const itemized = catalogItemizedBenefits(card);
-  if (itemized && itemized.length > 0) {
-    return assessmentsFromItemized(card, itemized, behaviors, overrides);
-  }
-
-  const perks = catalogPerks(card);
-  if (!perks) return [];
-
-  const lines: BenefitAssessment[] = [];
-
-  for (const kind of Object.keys(perks) as CardPerkKind[]) {
-    if (kind === "itemized") continue;
-    const spec = perks[kind];
-    if (!spec) continue;
-
-    const utilization = captureForKind(kind, behaviors);
-    const maxValue = spec.faceValue ?? Math.round((spec.softWeight ?? 0) * 40);
-    if (maxValue <= 0) continue;
-
-    const estimatedValue = Math.round(maxValue * utilization);
-    const id = `${kind}::${card.name}`;
-    const override = overrides[id];
-    const effectiveValue =
-      override != null && Number.isFinite(override)
-        ? Math.max(0, Math.round(override))
-        : estimatedValue;
-
-    // Soft-only elite with $0 estimate stays hidden unless overridden.
-    if (estimatedValue <= 0 && override == null) continue;
-
-    lines.push({
-      id,
-      perkKind: kind,
-      cardName: card.name,
-      label: PERK_KIND_LABELS[kind],
-      maxValue,
-      utilization,
-      usageAssumption: usageAssumption(kind, behaviors, utilization),
-      estimatedValue,
-      effectiveValue,
-      isEditable: true,
-    });
-  }
-
-  return lines;
+  return applyBenefitChoices(
+    assessmentsFromCatalog(card, catalogBenefits(card), behaviors, overrides)
+  );
 }
 
 /**
- * Deduplicate stack-unique benefits (e.g. one lounge value for the wallet)
- * while allowing stackable travel credits and itemized per-card benefits.
+ * Mark stack-once benefits (one lounge, one Global Entry credit) so only the
+ * highest value counts. Every line stays in the list so a card's editor does
+ * not lose the row when the user types a lower amount.
  */
 export function dedupeStackBenefits(
   benefits: BenefitAssessment[]
 ): BenefitAssessment[] {
-  const uniqueBest = new Map<CardPerkKind, BenefitAssessment>();
-  const stackable: BenefitAssessment[] = [];
+  const uniqueBest = new Map<BenefitStackGroup, BenefitAssessment>();
 
-  for (const b of benefits) {
-    if (b.perkKind === "itemized") {
-      stackable.push(b);
-      continue;
-    }
-    if (STACK_UNIQUE_BENEFITS.includes(b.perkKind)) {
-      const prev = uniqueBest.get(b.perkKind);
-      if (!prev || b.effectiveValue > prev.effectiveValue) {
-        uniqueBest.set(b.perkKind, b);
+  for (const benefit of benefits) {
+    if (benefit.countsInStack === false) continue;
+    if (benefit.stackRule === "once" && benefit.stackGroup) {
+      const prev = uniqueBest.get(benefit.stackGroup);
+      if (!prev || benefit.effectiveValue > prev.effectiveValue) {
+        uniqueBest.set(benefit.stackGroup, benefit);
       }
-    } else {
-      stackable.push(b);
     }
   }
 
-  return [...uniqueBest.values(), ...stackable];
+  return benefits.map((benefit) => {
+    if (benefit.countsInStack === false) return benefit;
+    if (!(benefit.stackRule === "once" && benefit.stackGroup)) {
+      return { ...benefit, countsInStack: true, countedOnCard: undefined };
+    }
+    const winner = uniqueBest.get(benefit.stackGroup);
+    const countsInStack = winner?.id === benefit.id;
+    return {
+      ...benefit,
+      countsInStack,
+      countedOnCard: countsInStack ? undefined : winner?.cardName,
+    };
+  });
 }
 
 export function sumBenefitValues(benefits: BenefitAssessment[]): number {
-  return Math.round(benefits.reduce((sum, b) => sum + b.effectiveValue, 0));
+  return Math.round(
+    benefits.reduce(
+      (sum, b) => sum + (b.countsInStack === false ? 0 : b.effectiveValue),
+      0
+    )
+  );
 }
 
-/** Convert assessments into legacy PerkCreditLine shape for existing UI. */
+/** Convert counted assessments into the credit-line shape used by breakdowns. */
 export function benefitsToPerkLines(
   benefits: BenefitAssessment[]
 ): PerkCreditLine[] {
-  return benefits.map((b) => ({
-    cardName: b.cardName,
-    perkKind: b.perkKind,
-    label: b.label,
-    faceValue: b.maxValue,
-    captureRate: b.utilization,
-    capturedValue: b.effectiveValue,
-  }));
+  return benefits
+    .filter((b) => b.countsInStack !== false && b.effectiveValue > 0)
+    .map((b) => ({
+      cardName: b.cardName,
+      valuedBy: b.valuedBy,
+      label: b.label,
+      faceValue: b.maxValue,
+      captureRate: b.utilization,
+      capturedValue: b.effectiveValue,
+    }));
 }
 
 export function calculateCardBenefitTotal(

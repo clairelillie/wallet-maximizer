@@ -7,7 +7,8 @@
     "build": "node scripts/assert-local-repo.cjs && next build",
     "start": "node scripts/assert-local-repo.cjs && next start",
     "lint": "node scripts/assert-local-repo.cjs && eslint",
-    "test": "node scripts/assert-local-repo.cjs && vitest run"
+    "test": "node scripts/assert-local-repo.cjs && vitest run",
+    "catalog:refresh": "node scripts/assert-local-repo.cjs && node --env-file-if-exists=.env ./node_modules/tsx/dist/cli.mjs scripts/refresh-catalog.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -29,6 +30,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^3.2.7"
   }

@@ -42,3 +42,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# drafted issuer reviews (a scheduled job may commit one on its own branch)
+/catalog-reviews/

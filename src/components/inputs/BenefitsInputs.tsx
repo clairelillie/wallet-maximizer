@@ -38,7 +38,7 @@ function ChoiceButton({
       className={cn(
         "rounded-xl border px-3 py-3 text-left text-sm font-semibold transition-colors",
         selected
-          ? "border-primary bg-gain-soft text-foreground dark:border-primary dark:bg-gain-soft/40"
+          ? "border-brand bg-brand-soft text-foreground"
           : "border-border/70 bg-background hover:border-foreground/20"
       )}
     >

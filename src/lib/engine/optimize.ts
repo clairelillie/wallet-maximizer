@@ -193,8 +193,11 @@ export function optimizeStackSize(
     (c) => !keepNames.has(c.name.toLowerCase())
   );
 
-  let best: OptimizedStackPick | null = null;
-  let fallback: OptimizedStackPick | null = null;
+  // Held in objects so assignments inside `consider` stay visible to the type checker.
+  const bestPick: { current: OptimizedStackPick | null } = { current: null };
+  const fallbackPick: { current: OptimizedStackPick | null } = {
+    current: null,
+  };
 
   const portfolioCount = (cards: NormalizedCard[]) =>
     cards.filter((c) => c.isFromUserPortfolio).length;
@@ -212,32 +215,34 @@ export function optimizeStackSize(
     const candidate: OptimizedStackPick = {
       cards: stack,
       valuation,
-      stackCards: toStackCards(stack, valuation, input, overrides),
+      // Explanations are filled in once, for the stack we keep.
+      stackCards: [],
     };
 
     // When the user named airline/hotel programs, skip stacks with no path
     // (e.g. Venture X alone when American is selected) if a covering card exists.
     if (loyaltyRequired && loyaltyCoverage(stack) === 0) {
       if (
-        !fallback ||
+        !fallbackPick.current ||
         isBetterOnRewardsThenBenefits(
           valuation,
-          fallback.valuation
+          fallbackPick.current.valuation
         ) === true
       ) {
-        fallback = candidate;
+        fallbackPick.current = candidate;
       }
       return;
     }
 
-    if (!best) {
-      best = candidate;
+    if (!bestPick.current) {
+      bestPick.current = candidate;
       return;
     }
 
     const pc = portfolioCount(stack);
-    const pb = portfolioCount(best.cards);
-    const valueDelta = valuation.stackValue - best.valuation.stackValue;
+    const pb = portfolioCount(bestPick.current.cards);
+    const valueDelta =
+      valuation.stackValue - bestPick.current.valuation.stackValue;
 
     // Soft-retain held cards for small gains/losses, but not when stack
     // values are equal (a held card adding $0 should be dropped).
@@ -253,16 +258,16 @@ export function optimizeStackSize(
       valueDelta !== 0 &&
       Math.abs(valueDelta) <= NEAR_TIE_THRESHOLD
     ) {
-      best = candidate;
+      bestPick.current = candidate;
       return;
     }
 
     const rewardsThenBenefits = isBetterOnRewardsThenBenefits(
       valuation,
-      best.valuation
+      bestPick.current.valuation
     );
     if (rewardsThenBenefits === true) {
-      best = candidate;
+      bestPick.current = candidate;
       return;
     }
     if (rewardsThenBenefits === false) return;
@@ -270,32 +275,34 @@ export function optimizeStackSize(
     // Still tied on rewards + benefits: prefer stacks that cover preferred
     // airline/hotel programs (role-aware — not every card must match).
     const lc = loyaltyCoverage(stack);
-    const lb = loyaltyCoverage(best.cards);
+    const lb = loyaltyCoverage(bestPick.current.cards);
     if (lc !== lb) {
-      if (lc > lb) best = candidate;
+      if (lc > lb) bestPick.current = candidate;
       return;
     }
 
     // Then prefer fewer cards.
-    if (stack.length !== best.cards.length) {
-      if (stack.length < best.cards.length) best = candidate;
+    if (stack.length !== bestPick.current.cards.length) {
+      if (stack.length < bestPick.current.cards.length) {
+        bestPick.current = candidate;
+      }
       return;
     }
 
     if (pc > pb) {
-      best = candidate;
+      bestPick.current = candidate;
       return;
     }
     if (pc < pb) return;
-    if (valuation.annualFees < best.valuation.annualFees) {
-      best = candidate;
+    if (valuation.annualFees < bestPick.current.valuation.annualFees) {
+      bestPick.current = candidate;
       return;
     }
     if (
-      valuation.annualFees === best.valuation.annualFees &&
-      valuation.stackValue > best.valuation.stackValue
+      valuation.annualFees === bestPick.current.valuation.annualFees &&
+      valuation.stackValue > bestPick.current.valuation.stackValue
     ) {
-      best = candidate;
+      bestPick.current = candidate;
     }
   };
 
@@ -331,11 +338,16 @@ export function optimizeStackSize(
   }
 
   // No keeps and empty pool.
-  if (!best && fixed.length === 0 && optionalForAdd.length > 0) {
+  if (!bestPick.current && fixed.length === 0 && optionalForAdd.length > 0) {
     consider([optionalForAdd[0]]);
   }
 
-  return best ?? fallback;
+  const chosen = bestPick.current ?? fallbackPick.current;
+  if (!chosen) return null;
+  return {
+    ...chosen,
+    stackCards: toStackCards(chosen.cards, chosen.valuation, input, overrides),
+  };
 }
 
 function toStackCards(

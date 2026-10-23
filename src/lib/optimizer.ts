@@ -248,22 +248,32 @@ function finalizeFromPick(
 
 /**
  * Re-score an existing recommendation after the user edits benefit values.
- * Keeps the same card set; recalculates dollars only.
+ * Keeps the same card set, except cards in `omitCardIds`, which the user
+ * chose to remove. Recalculates dollars for whatever remains.
  */
 export function revalueOptimizationResult(
   previous: OptimizationResult,
-  input: OptimizerInput
+  input: OptimizerInput,
+  omitCardIds: readonly string[] = []
 ): OptimizationResult {
   const overrides = input.benefitOverrides ?? {};
   const pool = generateCandidatePool(input);
   const byName = new Map(pool.map((c) => [c.name.toLowerCase(), c]));
 
-  const stackNorm: NormalizedCard[] = previous.stack
+  // The wallet shows the primary alternative. Keep those cards while a benefit
+  // value is edited so the row the user is typing into cannot disappear.
+  const omit = new Set(omitCardIds);
+  const lockedStack = (
+    previous.alternativeStacks.find((a) => a.isPrimary)?.stack ??
+    previous.stack
+  ).filter((card) => !omit.has(card.id));
+
+  const stackNorm: NormalizedCard[] = lockedStack
     .map((s) => byName.get(s.name.toLowerCase()))
     .filter((c): c is NormalizedCard => Boolean(c));
 
   // Fall back to re-optimize if we can't resolve cards.
-  if (stackNorm.length !== previous.stack.length) {
+  if (stackNorm.length !== lockedStack.length) {
     return optimizeStack(input);
   }
 
@@ -298,7 +308,7 @@ export function revalueOptimizationResult(
   const netAnnualPosition = valuation.stackValue;
   const totalEstimatedValue = Math.round(rewardsSubtotal + benefitsSubtotal);
 
-  const stack: StackCard[] = previous.stack.map((s) => {
+  const stack: StackCard[] = lockedStack.map((s) => {
     const others = stackNorm.filter(
       (c) => c.name.toLowerCase() !== s.name.toLowerCase()
     );
@@ -314,6 +324,12 @@ export function revalueOptimizationResult(
     return { ...s, incrementalValue: incremental };
   });
 
+  const lockedCheatSheet = valuation.assignments.filter(
+    (r) => r.monthlySpend > 0 || r.category === "other"
+  );
+  const netGainVsCurrent = Math.round(
+    netAnnualPosition - currentValuation.stackValue
+  );
   const alternativeStacks = buildAlternativeSummaries(
     pool,
     input,
@@ -321,14 +337,29 @@ export function revalueOptimizationResult(
     netAnnualPosition,
     currentValuation.stackValue,
     overrides
-  );
+  ).map((alt) => {
+    if (!alt.isPrimary) return alt;
+    return {
+      ...alt,
+      cardCount: stack.length,
+      cardNames: stack.map((c) => c.name),
+      estimatedAnnualValue: netAnnualPosition,
+      deltaVsPrimary: 0,
+      stack,
+      cheatSheet: lockedCheatSheet,
+      benefits: valuation.benefits,
+      rewardsSubtotal,
+      benefitsSubtotal,
+      feesSubtotal,
+      totalEstimatedValue,
+      netGainVsCurrent,
+    };
+  });
 
   return {
     ...previous,
     stack,
-    cheatSheet: valuation.assignments.filter(
-      (r) => r.monthlySpend > 0 || r.category === "other"
-    ),
+    cheatSheet: lockedCheatSheet,
     totalCurrentAnnualFees: currentValuation.annualFees,
     totalCurrentEstimatedRewards: Math.round(
       currentValuation.rewardsValue + currentValuation.benefitsValue
@@ -337,9 +368,7 @@ export function revalueOptimizationResult(
     totalOptimizedAnnualFees: feesSubtotal,
     totalEstimatedValue,
     netAnnualPosition,
-    netGainVsCurrent: Math.round(
-      netAnnualPosition - currentValuation.stackValue
-    ),
+    netGainVsCurrent,
     currentRewardsBreakdown: currentValuation.breakdown,
     optimizedRewardsBreakdown: valuation.breakdown,
     benefits: valuation.benefits,

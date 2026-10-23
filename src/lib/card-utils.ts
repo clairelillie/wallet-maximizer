@@ -27,12 +27,12 @@ function isTravelSpendCategory(
   );
 }
 
-/** Resolve portal/direct rates for a travel vertical, falling back to `default`. */
+/** Portal and direct rates for one travel vertical. */
 export function resolveTravelChannelRates(
   travelMultipliers: TravelMultipliers,
   category: "flights" | "hotels" | "rentalCars"
 ): TravelChannelRates | undefined {
-  return travelMultipliers[category] ?? travelMultipliers.default;
+  return travelMultipliers[category];
 }
 
 export function getEffectiveMultiplier(

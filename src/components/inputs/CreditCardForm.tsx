@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { Trash2 } from "lucide-react";
+import { useMemo, type ReactNode } from "react";
+import { ChevronDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -64,10 +64,39 @@ const blankCardFields = {
 };
 
 const selectClassName = cn(
-  "flex h-8 w-full items-center justify-between rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none",
+  "h-8 w-full appearance-none rounded-lg border border-white/10 bg-white/[0.04] py-1 pr-8 pl-2.5 text-base leading-normal outline-none md:text-sm",
   "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
   "disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
 );
+
+function CardSelect({
+  id,
+  value,
+  disabled,
+  onChange,
+  children,
+}: {
+  id: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="relative">
+      <select
+        id={id}
+        className={selectClassName}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {children}
+      </select>
+      <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+    </div>
+  );
+}
 
 export function CreditCardForm({
   card,
@@ -137,11 +166,10 @@ export function CreditCardForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor={`ecosystem-${card.id}`}>Ecosystem</Label>
-            <select
+            <CardSelect
               id={`ecosystem-${card.id}`}
-              className={selectClassName}
               value={ecosystem}
-              onChange={(e) => handleEcosystemChange(e.target.value)}
+              onChange={handleEcosystemChange}
             >
               <option value="">Select issuer</option>
               {CARD_ENTRY_ISSUER_OPTIONS.map((option) => (
@@ -149,21 +177,20 @@ export function CreditCardForm({
                   {option.label}
                 </option>
               ))}
-            </select>
+            </CardSelect>
           </div>
           {!isOtherIssuer && (
             <div className="space-y-1.5">
               <Label htmlFor={`card-${card.id}`}>Card</Label>
-              <select
+              <CardSelect
                 id={`card-${card.id}`}
-                className={selectClassName}
                 value={
                   isCustom
                     ? OTHER_CARD_VALUE
                     : card.catalogId || findCatalogCard(card.name)?.id || ""
                 }
                 disabled={!ecosystem}
-                onChange={(e) => handleCardChange(e.target.value)}
+                onChange={handleCardChange}
               >
                 <option value="">
                   {ecosystem ? "Select card" : "Choose an ecosystem first"}
@@ -174,7 +201,7 @@ export function CreditCardForm({
                   </option>
                 ))}
                 <option value={OTHER_CARD_VALUE}>Other</option>
-              </select>
+              </CardSelect>
             </div>
           )}
           {isCustom && (

@@ -31,7 +31,7 @@ import {
   calculateIncrementalValue,
   calculateStackValue,
 } from "@/lib/engine/stack-value";
-import { optimizeStack } from "@/lib/optimizer";
+import { optimizeStack, revalueOptimizationResult } from "@/lib/optimizer";
 import type {
   MonthlySpending,
   OptimizerInput,
@@ -153,10 +153,10 @@ describe("benefit personalization", () => {
     const never = calculatePersonalizedBenefits(plat, quietHabits);
     const often = calculatePersonalizedBenefits(plat, heavyTravelHabits);
     expect(
-      never.find((b) => b.perkKind === "loungeAccess")
-    ).toBeUndefined();
+      never.find((b) => b.stackGroup === "lounge")?.effectiveValue
+    ).toBe(0);
     expect(
-      often.find((b) => b.perkKind === "loungeAccess")?.effectiveValue
+      often.find((b) => b.stackGroup === "lounge")?.effectiveValue
     ).toBeGreaterThan(0);
   });
 
@@ -175,7 +175,7 @@ describe("benefit personalization", () => {
       CARD_CATALOG.find((c) => c.name === "Amex Platinum")!,
       "plat"
     );
-    const id = `loungeAccess::${plat.name}`;
+    const id = `centurion-lounge::${plat.name}`;
     const lines = calculatePersonalizedBenefits(plat, heavyTravelHabits, {
       [id]: 250,
     });
@@ -200,12 +200,18 @@ describe("benefit personalization", () => {
         "uber-credit",
       ].sort()
     );
-    // Quiet profile → no lifestyle spend → $0 captured itemized value.
+    // Quiet profile → no lifestyle spend → $0 captured value.
     expect(sumBenefitValues(lines)).toBe(0);
-    expect(lines.every((l) => l.perkKind === "itemized")).toBe(true);
+    const hertz = lines.find((l) => l.id.startsWith("hertz-status"));
+    expect(hertz?.valuedBy).toBe("manual");
+    expect(hertz?.effectiveValue).toBe(0);
+    expect(
+      lines.filter((l) => !l.id.startsWith("hertz-status")).every((l) => l.valuedBy !== "manual")
+    ).toBe(true);
     expect(lines.every((l) => Boolean(l.description))).toBe(true);
 
     const active = calculatePersonalizedBenefits(gold, heavyTravelHabits);
+    expect(active.find((l) => l.id.startsWith("hertz-status"))?.effectiveValue).toBe(0);
     expect(sumBenefitValues(active)).toBeGreaterThan(0);
     expect(
       active.find((l) => l.id.startsWith("uber-credit"))?.effectiveValue
@@ -223,6 +229,87 @@ describe("benefit personalization", () => {
     });
     expect(lines.find((l) => l.id === id)?.effectiveValue).toBe(20);
     expect(sumBenefitValues(lines)).toBe(20);
+  });
+
+  it("lists optional credits at $0 until the user sets a value", () => {
+    const plat = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Platinum")!,
+      "plat"
+    );
+    const lines = calculatePersonalizedBenefits(plat, heavyTravelHabits);
+    const equinox = lines.find((l) => l.id.startsWith("equinox-credit"));
+    expect(equinox?.valuedBy).toBe("manual");
+    expect(equinox?.effectiveValue).toBe(0);
+    expect(calculateBenefitPotential(plat, heavyTravelHabits)).toBe(
+      sumBenefitValues(lines)
+    );
+
+    const id = equinox!.id;
+    const overridden = calculatePersonalizedBenefits(plat, heavyTravelHabits, {
+      [id]: 300,
+    });
+    expect(overridden.find((l) => l.id === id)?.effectiveValue).toBe(300);
+    expect(sumBenefitValues(overridden)).toBe(sumBenefitValues(lines) + 300);
+  });
+
+  it("counts only the higher Chase Sapphire Preferred benefit option", () => {
+    const preferred = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Chase Sapphire Preferred")!,
+      "csp"
+    );
+    const delivery = calculatePersonalizedBenefits(preferred, {
+      ...quietHabits,
+      foodDeliveryMonthly: "51-100",
+      trustedTravelerStatus: "would-use-reimbursement",
+    });
+    const globalEntry = delivery.find((line) =>
+      line.id.startsWith("csp-global-entry")
+    );
+    const dashPass = delivery.find((line) => line.id.startsWith("csp-dashpass"));
+    const promo = delivery.find((line) =>
+      line.id.startsWith("csp-doordash-promo")
+    );
+    expect(dashPass?.effectiveValue).toBe(120);
+    expect(promo?.effectiveValue).toBe(120);
+    expect(dashPass?.countsInStack).not.toBe(false);
+    expect(promo?.countsInStack).not.toBe(false);
+    expect(globalEntry?.countsInStack).toBe(false);
+    expect(sumBenefitValues(delivery)).toBe(240);
+
+    const traveler = calculatePersonalizedBenefits(preferred, {
+      ...quietHabits,
+      foodDeliveryMonthly: "0",
+      trustedTravelerStatus: "would-use-reimbursement",
+    });
+    expect(
+      traveler.find((line) => line.id.startsWith("csp-global-entry"))
+        ?.countsInStack
+    ).not.toBe(false);
+    expect(
+      traveler.find((line) => line.id.startsWith("csp-dashpass"))?.countsInStack
+    ).toBe(false);
+    expect(sumBenefitValues(traveler)).toBe(30);
+
+    const reserve = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Chase Sapphire Reserve")!,
+      "csr"
+    );
+    const stacked = dedupeStackBenefits([
+      ...delivery,
+      ...calculatePersonalizedBenefits(reserve, {
+        ...quietHabits,
+        foodDeliveryMonthly: "51-100",
+        trustedTravelerStatus: "would-use-reimbursement",
+      }),
+    ]);
+    expect(
+      stacked.find((line) => line.id.startsWith("csp-global-entry"))
+        ?.countsInStack
+    ).toBe(false);
+    expect(
+      stacked.find((line) => line.id.startsWith("csr-global-entry"))
+        ?.countsInStack
+    ).not.toBe(false);
   });
 });
 
@@ -248,7 +335,7 @@ describe("stack-value comparator", () => {
   });
 
   it("prefers a fee card when benefits more than offset the fee", () => {
-    // Mirrors Amex Gold vs SavorOne: lower rewards−fees, much higher benefits.
+    // Mirrors Amex Gold vs Savor: lower rewards−fees, much higher benefits.
     const savorLike = {
       rewardsValue: 336,
       benefitsValue: 0,
@@ -257,7 +344,7 @@ describe("stack-value comparator", () => {
     const goldLike = {
       rewardsValue: 444,
       benefitsValue: 424,
-      annualFees: 250,
+      annualFees: 325,
     };
     expect(isBetterOnRewardsThenBenefits(goldLike, savorLike)).toBe(true);
     expect(isBetterOnRewardsThenBenefits(savorLike, goldLike)).toBe(false);
@@ -271,7 +358,7 @@ describe("stack-value comparator", () => {
   });
 });
 
-describe("Amex Gold vs held SavorOne", () => {
+describe("Amex Gold vs held Savor", () => {
   it("recommends Gold when user will use Uber/Resy/DoorDash credits", () => {
     const lifestyleHabits: PerkBehaviorAnswers = {
       ...quietHabits,
@@ -280,7 +367,7 @@ describe("Amex Gold vs held SavorOne", () => {
       resyMonthly: "51-100",
     };
     const input = baseInput({
-      cards: [userCard("Capital One SavorOne", { id: "savor" })],
+      cards: [userCard("Capital One Savor", { id: "savor" })],
       spending: {
         dining: 400,
         grocery: 500,
@@ -305,7 +392,7 @@ describe("Amex Gold vs held SavorOne", () => {
     expect(result.stack.some((c) => c.name === "Amex Gold")).toBe(true);
     expect(result.netGainVsCurrent).toBeGreaterThan(NEAR_TIE_THRESHOLD);
     // Savor adds $0 beside Gold — drop it unless must-keep; never call it must-keep.
-    const savor = result.stack.find((c) => c.name === "Capital One SavorOne");
+    const savor = result.stack.find((c) => c.name === "Capital One Savor");
     if (savor) {
       expect(savor.whyChosen.toLowerCase()).not.toContain("must-keep");
     } else {
@@ -316,7 +403,7 @@ describe("Amex Gold vs held SavorOne", () => {
   it("does not claim must-keep for a held card that was not marked keep", () => {
     const input = baseInput({
       cards: [
-        userCard("Capital One SavorOne", { id: "savor", keepThisCard: false }),
+        userCard("Capital One Savor", { id: "savor", keepThisCard: false }),
         userCard("Amex Gold", { id: "gold", keepThisCard: true }),
       ],
       preferences: {
@@ -334,7 +421,7 @@ describe("Amex Gold vs held SavorOne", () => {
       },
     });
     const result = optimizeStack(input);
-    const savor = result.stack.find((c) => c.name === "Capital One SavorOne");
+    const savor = result.stack.find((c) => c.name === "Capital One Savor");
     if (savor) {
       expect(savor.whyChosen.toLowerCase()).not.toContain("must-keep");
     }
@@ -355,13 +442,114 @@ describe("overlapping benefits", () => {
       ...calculatePersonalizedBenefits(plat, heavyTravelHabits),
       ...calculatePersonalizedBenefits(csr, heavyTravelHabits),
     ];
-    const lounges = raw.filter((b) => b.perkKind === "loungeAccess");
+    const lounges = raw.filter((b) => b.stackGroup === "lounge");
     expect(lounges.length).toBeGreaterThanOrEqual(2);
     const deduped = dedupeStackBenefits(raw);
-    expect(deduped.filter((b) => b.perkKind === "loungeAccess")).toHaveLength(
-      1
-    );
+    const dedupedLounges = deduped.filter((b) => b.stackGroup === "lounge");
+    expect(dedupedLounges).toHaveLength(lounges.length);
+    expect(
+      dedupedLounges.filter((b) => b.countsInStack !== false)
+    ).toHaveLength(1);
     expect(sumBenefitValues(deduped)).toBeLessThan(sumBenefitValues(raw));
+  });
+
+  it("keeps Capital One lounge visible after its value drops below another lounge", () => {
+    const vx = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Capital One Venture X")!,
+      "vx"
+    );
+    const csr = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name.includes("Sapphire Reserve"))!,
+      "csr"
+    );
+    const loungeId = `capital-one-lounge::${vx.name}`;
+    const raw = [
+      ...calculatePersonalizedBenefits(vx, heavyTravelHabits, {
+        [loungeId]: 25,
+      }),
+      ...calculatePersonalizedBenefits(csr, heavyTravelHabits),
+    ];
+    const deduped = dedupeStackBenefits(raw);
+    const capOne = deduped.find((b) => b.id === loungeId);
+    const sapphire = deduped.find((b) => b.id.startsWith("sapphire-lounge"));
+    expect(capOne?.effectiveValue).toBe(25);
+    expect(capOne?.countsInStack).toBe(false);
+    expect(capOne?.countedOnCard).toBe(csr.name);
+    expect(sapphire?.countsInStack).not.toBe(false);
+    expect(
+      sumBenefitValues(deduped.filter((b) => b.stackGroup === "lounge"))
+    ).toBe(sapphire?.effectiveValue);
+  });
+
+  it("keeps the Capital One lounge on the open card when its value is edited down", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One Venture X", { keepThisCard: true, id: "vx" }),
+        userCard("Chase Sapphire Reserve", { keepThisCard: true, id: "csr" }),
+      ],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["flexible"],
+        perkBehaviors: heavyTravelHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    const before = result.alternativeStacks.find((a) => a.isPrimary);
+    expect(before?.stack.map((c) => c.name).sort()).toEqual([
+      "Capital One Venture X",
+      "Chase Sapphire Reserve",
+    ]);
+    const loungeId = `capital-one-lounge::Capital One Venture X`;
+    const edited = revalueOptimizationResult(result, {
+      ...input,
+      benefitOverrides: { [loungeId]: 25 },
+    });
+    const view = edited.alternativeStacks.find((a) => a.isPrimary);
+    expect(view?.stack.map((c) => c.id)).toEqual(before?.stack.map((c) => c.id));
+    const lounge = view?.benefits.find((b) => b.id === loungeId);
+    expect(lounge?.effectiveValue).toBe(25);
+    expect(lounge?.cardName).toBe("Capital One Venture X");
+    expect(lounge?.countsInStack).toBe(false);
+  });
+
+  it("removes a card the user dropped and rescores the cards that remain", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One Venture X", { keepThisCard: true, id: "vx" }),
+        userCard("Chase Sapphire Reserve", { keepThisCard: true, id: "csr" }),
+      ],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["flexible"],
+        perkBehaviors: heavyTravelHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    const before = result.alternativeStacks.find((a) => a.isPrimary);
+    const reserve = before?.stack.find(
+      (card) => card.name === "Chase Sapphire Reserve"
+    );
+    expect(reserve).toBeDefined();
+    const edited = revalueOptimizationResult(
+      result,
+      {
+        ...input,
+        cards: input.cards.filter((card) => card.id !== "csr"),
+      },
+      [reserve!.id]
+    );
+    const view = edited.alternativeStacks.find((a) => a.isPrimary);
+    expect(view?.stack.map((card) => card.name)).toEqual([
+      "Capital One Venture X",
+    ]);
+    expect(view?.feesSubtotal).toBe(
+      (before?.feesSubtotal ?? 0) - reserve!.annualFee
+    );
+    expect(edited.stack.map((card) => card.name)).toEqual([
+      "Capital One Venture X",
+    ]);
   });
 });
 
@@ -574,9 +762,9 @@ describe("optimizeStack end-to-end", () => {
 });
 
 describe("held wallet retention", () => {
-  it("does not add Freedom Unlimited when SavorOne already covers dining", () => {
+  it("does not add Freedom Unlimited when Savor already covers dining", () => {
     const input = baseInput({
-      cards: [userCard("Capital One SavorOne", { id: "savor" })],
+      cards: [userCard("Capital One Savor", { id: "savor" })],
       spending: {
         dining: 400,
         grocery: 500,
@@ -600,14 +788,14 @@ describe("held wallet retention", () => {
       result.stack.some((c) => c.name === "Chase Freedom Unlimited")
     ).toBe(false);
     expect(
-      result.stack.some((c) => c.name === "Capital One SavorOne")
+      result.stack.some((c) => c.name === "Capital One Savor")
     ).toBe(true);
     expect(result.netGainVsCurrent).toBeGreaterThanOrEqual(-NEAR_TIE_THRESHOLD);
   });
 
-  it("keeps SavorOne when Freedom Unlimited would only marginally improve", () => {
+  it("keeps Savor when Freedom Unlimited would only marginally improve", () => {
     const input = baseInput({
-      cards: [userCard("Capital One SavorOne", { id: "savor" })],
+      cards: [userCard("Capital One Savor", { id: "savor" })],
       spending: {
         dining: 400,
         grocery: 500,
@@ -629,7 +817,7 @@ describe("held wallet retention", () => {
     });
     const result = optimizeStack(input);
     expect(
-      result.stack.some((c) => c.name === "Capital One SavorOne")
+      result.stack.some((c) => c.name === "Capital One Savor")
     ).toBe(true);
   });
 });
@@ -734,7 +922,7 @@ describe("mixed rewards strategies", () => {
     const result = optimizeStack(input);
     expect(result.stack.length).toBeGreaterThan(0);
     for (const card of result.stack) {
-      if (card.name === "Capital One SavorOne") continue; // cash-back OK
+      if (card.name === "Capital One Savor") continue; // cash-back OK
       const catalog = CARD_CATALOG.find((x) => x.name === card.name);
       expect(
         catalog?.directEarnPrograms?.includes("american") ||
@@ -763,7 +951,7 @@ describe("mixed rewards strategies", () => {
 
   it("keeps cash-back category cards eligible beside Delta preference", () => {
     const input = baseInput({
-      cards: [userCard("Capital One SavorOne", { id: "savor" })],
+      cards: [userCard("Capital One Savor", { id: "savor" })],
       preferences: {
         ...DEFAULT_PREFERENCES,
         maxCards: 3,
@@ -775,7 +963,7 @@ describe("mixed rewards strategies", () => {
       },
     });
     const pool = generateCandidatePool(input);
-    expect(pool.some((c) => c.name === "Capital One SavorOne")).toBe(true);
+    expect(pool.some((c) => c.name === "Capital One Savor")).toBe(true);
     expect(pool.some((c) => c.name === "Amex Gold")).toBe(true);
   });
 });

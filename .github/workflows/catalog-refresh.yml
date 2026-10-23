@@ -1,0 +1,68 @@
+name: Refresh card catalog
+
+on:
+  schedule:
+    # Monday 13:00 UTC.
+    - cron: "0 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Draft catalog review
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CATALOG_REFRESH_MODEL: ${{ vars.CATALOG_REFRESH_MODEL }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "OPENAI_API_KEY is not set. Checking that issuer pages still return benefit text."
+            npx tsx scripts/refresh-catalog.ts --fetch-only
+          else
+            npx tsx scripts/refresh-catalog.ts
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-review
+          path: catalog-reviews/
+          if-no-files-found: ignore
+
+      - name: Open a review pull request
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+          if (!fs.existsSync("catalog-reviews/latest.json")) process.exit(0);
+          const latest = JSON.parse(fs.readFileSync("catalog-reviews/latest.json", "utf8"));
+          if (!latest.hasProposals) {
+            console.log("No catalog changes to review.");
+            process.exit(0);
+          }
+          fs.writeFileSync("catalog-reviews/.open-pr", latest.directory);
+          NODE
+          if [ ! -f catalog-reviews/.open-pr ]; then exit 0; fi
+          rm -f catalog-reviews/.open-pr
+          BRANCH="catalog-refresh-${GITHUB_RUN_ID}"
+          git checkout -B "$BRANCH"
+          git add -f catalog-reviews
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Review issuer updates to the card catalog"
+          git push origin "$BRANCH"
+          SUMMARY=$(ls -1 catalog-reviews/*/summary.md | head -n 1)
+          gh pr create --title "Review catalog updates" --body "$(head -c 60000 "$SUMMARY")"

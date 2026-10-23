@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Outfit, IBM_Plex_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const sans = Outfit({
+const sans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-app-sans",
   display: "swap",

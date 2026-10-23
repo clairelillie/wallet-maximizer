@@ -94,9 +94,9 @@ export function InputScreen({
               onClick={() => setStep(item.id)}
               className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                 active
-                  ? "bg-foreground text-background"
+                  ? "bg-brand text-white shadow-[0_0_18px_oklch(0.67_0.18_295/0.35)]"
                   : done
-                    ? "bg-brand-soft text-foreground dark:bg-brand-soft/50"
+                    ? "bg-brand-soft text-foreground"
                     : "bg-muted text-muted-foreground hover:text-foreground"
               }`}
             >

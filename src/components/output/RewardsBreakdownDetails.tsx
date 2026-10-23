@@ -109,7 +109,7 @@ export function RewardsBreakdownDetails({
           <ul className="space-y-1">
             {breakdown.perkLines.map((line) => (
               <li
-                key={`${line.cardName}-${line.perkKind}-${line.label}`}
+                key={`${line.cardName}-${line.valuedBy}-${line.label}`}
                 className="flex items-start justify-between gap-3"
               >
                 <span className="text-muted-foreground">
@@ -143,7 +143,7 @@ export function RewardsBreakdownDetails({
             </p>
             <ul className="space-y-1 text-xs text-muted-foreground">
               {breakdown.softPerkLines.map((line) => (
-                <li key={`${line.cardName}-${line.perkKind}-${line.label}`}>
+                <li key={`${line.cardName}-${line.valuedBy}-${line.label}`}>
                   {line.label} · {line.cardName} · soft {line.softScore}
                 </li>
               ))}

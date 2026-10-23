@@ -30,6 +30,7 @@ export function StackOptimizerApp() {
     isStale,
     calculate,
     updateBenefitOverride,
+    removeCardsFromStack,
     resetBenefitOverrides,
     addCard,
     updateCard,
@@ -162,7 +163,7 @@ export function StackOptimizerApp() {
   const resultsReady = hasCalculated && resultsRevealed;
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,oklch(0.97_0.01_250)_0%,oklch(0.985_0.004_250)_45%,oklch(0.96_0.02_55)_100%)] dark:bg-[linear-gradient(180deg,oklch(0.16_0.025_265)_0%,oklch(0.18_0.03_265)_100%)]">
+    <div className="min-h-screen">
       <AppHeader />
       <ScreenNav
         screen={screen}
@@ -207,6 +208,7 @@ export function StackOptimizerApp() {
             onCompare={() => handleScreenChange("compare")}
             onEditInputs={() => handleScreenChange("input")}
             onBenefitOverride={updateBenefitOverride}
+            onRemoveCards={removeCardsFromStack}
             onResetBenefits={resetBenefitOverrides}
             onReviewStackChange={syncReviewIds}
           />

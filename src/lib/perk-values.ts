@@ -1,33 +1,13 @@
 import type {
-  CardPerkKind,
-  CardPerks,
   CheckedBagsBucket,
   HotelNightsBucket,
   LoungeVisitsBucket,
   MonthlySpendBucket,
   MonthlySpendBucketCap100,
-  NormalizedCard,
   PerkBehaviorAnswers,
-  PerkCreditLine,
-  SoftPerkLine,
   TravelCreditLikelihood,
   TrustedTravelerStatus,
 } from "@/types";
-import {
-  findCatalogCardById,
-  findCatalogCardByName,
-} from "@/catalog";
-
-export const PERK_KIND_LABELS: Record<CardPerkKind, string> = {
-  loungeAccess: "Lounge access",
-  hotelCredit: "Hotel credit",
-  trustedTravelerCredit: "TSA PreCheck / Global Entry",
-  travelCredit: "Travel credit",
-  phoneProtection: "Phone protection",
-  streamingCredit: "Streaming credit",
-  eliteStatus: "Elite status",
-  itemized: "Card benefit",
-};
 
 export const LOUNGE_VISIT_OPTIONS: Array<{
   value: LoungeVisitsBucket;
@@ -125,14 +105,6 @@ const TRAVEL_CREDIT_CAPTURE: Record<TravelCreditLikelihood, number> = {
   no: 0,
 };
 
-const CHECKED_BAGS_SOFT: Record<CheckedBagsBucket, number> = {
-  "0": 0,
-  "1-2": 0.25,
-  "3-5": 0.5,
-  "6-10": 0.75,
-  "10+": 1,
-};
-
 /** Midpoint annual spend ($) from a monthly bucket. */
 export function annualFromMonthlyBucket(
   bucket: MonthlySpendBucket | MonthlySpendBucketCap100
@@ -173,155 +145,11 @@ export function trustedTravelerCapture(status: TrustedTravelerStatus): number {
   return status === "would-use-reimbursement" ? 1 : 0;
 }
 
-export function streamingCapture(bucket: MonthlySpendBucketCap100): number {
-  const annual = annualFromMonthlyBucket(bucket);
-  // Typical streaming credit face values are ~$120–240/yr.
-  if (annual <= 0) return 0;
-  if (annual < 120) return Math.min(1, annual / 120);
-  return 1;
-}
-
 export function optionLabel<T extends string>(
   options: Array<{ value: T; label: string }>,
   value: T
 ): string {
   return options.find((o) => o.value === value)?.label ?? value;
-}
-
-function clampSoft(score: number): number {
-  return Math.max(0, Math.min(10, Math.round(score * 10) / 10));
-}
-
-function catalogPerksForCard(card: {
-  catalogId?: string | null;
-  name: string;
-}): CardPerks | undefined {
-  return (
-    findCatalogCardById(card.catalogId) ?? findCatalogCardByName(card.name)
-  )?.perks;
-}
-
-export interface ComputedPerkValues {
-  quantifiableCreditValue: number;
-  softPerkScore: number;
-  perkLines: PerkCreditLine[];
-  softPerkLines: SoftPerkLine[];
-}
-
-/**
- * Maps catalog perk face values + user benefit answers into realistic
- * captured dollars and a soft tie-breaker score.
- */
-export function computePerkValues(
-  perks: CardPerks | undefined,
-  behaviors: PerkBehaviorAnswers,
-  cardName = ""
-): ComputedPerkValues {
-  if (!perks) {
-    return {
-      quantifiableCreditValue: 0,
-      softPerkScore: 0,
-      perkLines: [],
-      softPerkLines: [],
-    };
-  }
-
-  let dollars = 0;
-  let soft = 0;
-  const perkLines: PerkCreditLine[] = [];
-  const softPerkLines: SoftPerkLine[] = [];
-
-  const pushDollar = (kind: CardPerkKind, capture: number) => {
-    const spec = perks[kind];
-    if (!spec?.faceValue || capture <= 0) return;
-    const capturedValue = Math.round(spec.faceValue * capture);
-    if (capturedValue <= 0) return;
-    dollars += spec.faceValue * capture;
-    perkLines.push({
-      cardName,
-      perkKind: kind,
-      label: PERK_KIND_LABELS[kind],
-      faceValue: spec.faceValue,
-      captureRate: capture,
-      capturedValue,
-    });
-  };
-
-  const pushSoft = (kind: CardPerkKind, softBoost: number) => {
-    const spec = perks[kind];
-    if (!spec?.softWeight || softBoost <= 0) return;
-    const contribution = spec.softWeight * softBoost;
-    soft += contribution;
-    softPerkLines.push({
-      cardName,
-      perkKind: kind,
-      label: PERK_KIND_LABELS[kind],
-      softScore: Math.round(contribution * 10) / 10,
-    });
-  };
-
-  const lounge = loungeCapture(behaviors.loungeVisits);
-  pushDollar("loungeAccess", lounge);
-  pushSoft("loungeAccess", lounge);
-
-  const hotel = hotelNightsCapture(behaviors.hotelNights);
-  pushDollar("hotelCredit", hotel);
-  pushSoft("hotelCredit", hotel > 0 ? 0.15 : 0);
-  pushSoft("eliteStatus", hotel > 0 ? (hotel >= 0.8 ? 1 : 0.5) : 0);
-
-  pushDollar(
-    "trustedTravelerCredit",
-    trustedTravelerCapture(behaviors.trustedTravelerStatus)
-  );
-
-  pushDollar(
-    "travelCredit",
-    travelCreditCapture(behaviors.travelCreditLikelihood)
-  );
-
-  // Phone protection question removed — do not invent capture.
-  pushDollar("phoneProtection", 0);
-
-  pushDollar("streamingCredit", streamingCapture(behaviors.streamingMonthly));
-
-  // Checked bags nudge travel-oriented soft value when relevant.
-  soft += CHECKED_BAGS_SOFT[behaviors.checkedBagsPerYear] * 0.5;
-
-  return {
-    quantifiableCreditValue: Math.round(dollars),
-    softPerkScore: clampSoft(soft),
-    perkLines,
-    softPerkLines,
-  };
-}
-
-export function applyPerkBehaviorToCatalog(
-  pool: NormalizedCard[],
-  answers: PerkBehaviorAnswers
-): NormalizedCard[] {
-  return pool.map((card) => {
-    const values = computePerkValues(
-      catalogPerksForCard(card),
-      answers,
-      card.name
-    );
-    return {
-      ...card,
-      quantifiableCreditValue: values.quantifiableCreditValue,
-      softPerkScore: values.softPerkScore,
-    };
-  });
-}
-
-export function perkBreakdownForCard(
-  cardName: string,
-  answers: PerkBehaviorAnswers
-): ComputedPerkValues {
-  return computePerkValues(
-    catalogPerksForCard({ name: cardName }),
-    answers,
-    cardName
-  );
 }
 
 export const DEFAULT_PERK_BEHAVIORS: PerkBehaviorAnswers = {

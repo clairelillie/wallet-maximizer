@@ -23,6 +23,7 @@ interface StackResultScreenProps {
   onCompare: () => void;
   onEditInputs: () => void;
   onBenefitOverride: (benefitId: string, value: number) => void;
+  onRemoveCards: (cardIds: string[]) => void;
   onResetBenefits: () => void;
 }
 
@@ -36,6 +37,7 @@ export function StackResultScreen({
   onCompare,
   onEditInputs,
   onBenefitOverride,
+  onRemoveCards,
 }: StackResultScreenProps) {
   const primaryAlt =
     result.alternativeStacks.find((a) => a.isPrimary) ??
@@ -66,10 +68,10 @@ export function StackResultScreen({
   const cheatSheet = view.cheatSheet.filter((row) => row.monthlySpend > 0);
   const earningsDollars = Math.round(Math.abs(view.rewardsSubtotal));
   const benefitsUpTo = Math.round(
-    view.benefits.reduce(
-      (sum, b) => sum + (b.maxValue > 0 ? b.maxValue : b.effectiveValue),
-      0
-    )
+    view.benefits.reduce((sum, b) => {
+      if (b.countsInStack === false) return sum;
+      return sum + (b.maxValue > 0 ? b.maxValue : b.effectiveValue);
+    }, 0)
   );
   const feesDollars = Math.round(Math.abs(view.feesSubtotal));
   const grossBeforeFees = earningsDollars + benefitsUpTo;
@@ -139,6 +141,7 @@ export function StackResultScreen({
         benefits={view.benefits}
         rewardTypePreference={rewardTypePreference}
         onBenefitOverride={onBenefitOverride}
+        onRemoveCards={onRemoveCards}
         selectionKey={reviewIdsKey || "primary"}
         savedByCardId={savedByCardId}
         onSaveCard={onSaveCard}

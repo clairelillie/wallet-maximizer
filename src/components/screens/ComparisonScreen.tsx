@@ -100,8 +100,8 @@ function ValueCell({
   );
 }
 
-function benefitKey(cardName: string, label: string, perkKind: string): string {
-  return `${cardName.toLowerCase()}::${perkKind}::${label.toLowerCase()}`;
+function benefitKey(cardName: string, label: string, valuedBy: string): string {
+  return `${cardName.toLowerCase()}::${valuedBy}::${label.toLowerCase()}`;
 }
 
 type BenefitRevealRow =
@@ -143,6 +143,7 @@ function buildBenefitRevealRows(
 ): BenefitRevealRow[] {
   const savedNames = new Set(savedCards.map((c) => c.cardName));
   const recommended = recommendedBenefits
+    .filter((b) => b.countsInStack !== false)
     .filter((b) =>
       savedNames.size === 0 ? true : savedNames.has(b.cardName)
     )
@@ -153,7 +154,7 @@ function buildBenefitRevealRows(
 
   const recByKey = new Map(
     recommended.map((r) => [
-      benefitKey(r.benefit.cardName, r.benefit.label, r.benefit.perkKind),
+      benefitKey(r.benefit.cardName, r.benefit.label, r.benefit.valuedBy),
       r,
     ])
   );
@@ -163,7 +164,7 @@ function buildBenefitRevealRows(
   const rows: BenefitRevealRow[] = [];
 
   for (const perk of currentPositive) {
-    const key = benefitKey(perk.cardName, perk.label, perk.perkKind);
+    const key = benefitKey(perk.cardName, perk.label, perk.valuedBy);
     seen.add(key);
     const rec = recByKey.get(key);
     if (!rec) {

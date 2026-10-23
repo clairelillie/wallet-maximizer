@@ -43,7 +43,7 @@ export function ScreenNav({
     : BASE_SCREENS;
 
   return (
-    <nav className="border-b border-border/50 bg-background/90 backdrop-blur-sm">
+    <nav className="border-b border-white/8 bg-background/40 backdrop-blur-sm">
       <div className="mx-auto flex max-w-3xl items-stretch gap-1 px-4 sm:px-6">
         {screens.map((item) => {
           const locked =
@@ -75,7 +75,7 @@ export function ScreenNav({
                 {item.label}
               </span>
               {active && (
-                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-brand" />
+                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-brand shadow-[0_0_12px_oklch(0.67_0.18_295/0.8)]" />
               )}
             </button>
           );

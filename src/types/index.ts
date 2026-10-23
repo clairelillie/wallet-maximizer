@@ -103,43 +103,68 @@ export type TrustedTravelerStatus =
   | "would-use-reimbursement"
   | "dont-need";
 
-export type CardPerkKind =
-  | "loungeAccess"
-  | "hotelCredit"
-  | "trustedTravelerCredit"
+/**
+ * Which Benefits answer sets a credit's starting yearly value.
+ * `"included"` is automatic while the card is held.
+ * `"manual"` stays $0 until the user types a value.
+ */
+export type BenefitValueDriver =
+  | "loungeVisits"
+  | "hotelNights"
   | "travelCredit"
-  | "phoneProtection"
-  | "streamingCredit"
-  | "eliteStatus"
-  /** Itemized catalog benefit (e.g. Amex Gold Uber credit). */
-  | "itemized";
+  | "trustedTraveler"
+  | "rideshare"
+  | "foodDelivery"
+  | "resy"
+  | "streaming"
+  | "checkedBags"
+  | "included"
+  | "manual";
 
-export interface CardPerkSpec {
-  /** Advertised / nominal annual face value when dollar-based. */
-  faceValue?: number;
-  /** Soft perk weight when not cleanly dollar-based (0–10 contribution before behavior scaling). */
-  softWeight?: number;
-}
-
-export type CardPerks = Partial<Record<CardPerkKind, CardPerkSpec>>;
+/** Credits that should count only once across the whole stack. */
+export type BenefitStackGroup = "lounge" | "trustedTraveler" | "eliteStatus";
 
 /**
- * Explicit statement credit / status benefit on a catalog card.
- * User-editable on results; used as a tie-breaker when rewards are close.
+ * One named credit on a catalog card.
+ * The same shape is used for statement credits, bag waivers, and optional perks.
  */
-export interface ItemizedCardBenefit {
+export interface CatalogBenefit {
   id: string;
   label: string;
   description: string;
-  /** Advertised / ceiling annual value ($). */
+  /** Advertised annual ceiling ($). Wallet edits cannot exceed this. */
   maxAnnualValue: number;
-  /** Starting personalized estimate ($/yr) before user edits. */
-  defaultEstimate: number;
+  /**
+   * Amount the Benefits answer scales. Defaults to maxAnnualValue.
+   * Set lower when the starting guess should sit under the edit ceiling.
+   */
+  estimateBasis?: number;
+  /** Which Benefits answer sets the starting yearly value. */
+  valuedBy: BenefitValueDriver;
+  /** Share of that answer's annual spend to count. Spend drivers only. Default 1. */
+  spendShare?: number;
+  /** Dollars per checked-bag segment. Default 40. */
+  perSegmentValue?: number;
+  /**
+   * Convenience benefits: estimate = basis × min(1, segments / segmentScale).
+   */
+  segmentScale?: number;
+  /** "once" keeps the highest line in stackGroup. "each" counts on every card. */
+  stackRule: "once" | "each";
+  stackGroup?: BenefitStackGroup;
+  /**
+   * Lines that share a choiceGroup are alternatives on one card.
+   * Only the choiceOption with the higher total is added.
+   */
+  choiceGroup?: string;
+  choiceOption?: string;
+  /** Short name for this side of a choice, shown above its credits. */
+  choiceOptionLabel?: string;
 }
 
 /**
  * Benefit-usage answers from the Benefits page.
- * Feeds quantifiableCreditValue / softPerkScore on normalized cards.
+ * Each catalog credit names the answer that sets its starting value.
  */
 export interface PerkBehaviorAnswers {
   loungeVisits: LoungeVisitsBucket;
@@ -271,10 +296,10 @@ export interface CategoryAssignment {
   annualReward: number;
 }
 
-/** One captured dollar credit from a card perk after behavior scaling. */
+/** One captured dollar credit from a card benefit after behavior scaling. */
 export interface PerkCreditLine {
   cardName: string;
-  perkKind: CardPerkKind;
+  valuedBy: BenefitValueDriver;
   label: string;
   faceValue: number;
   /** 0–1 capture rate from perk behaviors. */
@@ -285,7 +310,7 @@ export interface PerkCreditLine {
 /** Soft (non-dollar) perk contribution used as a tie-breaker. */
 export interface SoftPerkLine {
   cardName: string;
-  perkKind: CardPerkKind;
+  valuedBy: BenefitValueDriver;
   label: string;
   softScore: number;
 }
@@ -306,10 +331,12 @@ export interface RewardsBreakdown {
  */
 export interface BenefitAssessment {
   id: string;
-  perkKind: CardPerkKind;
+  valuedBy: BenefitValueDriver;
+  stackRule: "once" | "each";
+  stackGroup?: BenefitStackGroup;
   cardName: string;
   label: string;
-  /** Optional detail for itemized credits (partners, cadence, caveats). */
+  /** Optional detail for credits (partners, cadence, caveats). */
   description?: string;
   maxValue: number;
   utilization: number;
@@ -317,6 +344,19 @@ export interface BenefitAssessment {
   estimatedValue: number;
   effectiveValue: number;
   isEditable: boolean;
+  /**
+   * False when this line is skipped: another card already counts the same
+   * stack-once credit, or a different option in this card's choice won.
+   * The line stays editable; stack totals skip it.
+   */
+  countsInStack?: boolean;
+  /** Other card that already counts this stack-once credit, when this line does not. */
+  countedOnCard?: string;
+  /** Why a choose-one option is left out of the total. */
+  exclusionNote?: string;
+  choiceGroup?: string;
+  choiceOption?: string;
+  choiceOptionLabel?: string;
 }
 
 /** User overrides of subjective benefit estimates: benefit id → $/yr. */
@@ -391,7 +431,7 @@ export interface OptimizationResult {
   /** How optimized-stack projected rewards are built (multipliers + perks). */
   optimizedRewardsBreakdown: RewardsBreakdown;
   complexityTradeoff: ComplexityTradeoff;
-  /** Deduped personalized benefits for the recommended stack (editable). */
+  /** Personalized benefits for the recommended stack. Stack-once credits stay on every card; only the highest counts. */
   benefits: BenefitAssessment[];
   rewardsSubtotal: number;
   benefitsSubtotal: number;
@@ -414,14 +454,12 @@ export interface TravelChannelRates {
 }
 
 /**
- * Travel earn rates. Use `default` when all verticals share the same pair;
- * override `flights` / `hotels` / `rentalCars` when they differ (e.g. Venture X).
+ * Travel earn rates. Every catalog card sets portal and direct for each vertical.
  */
 export interface TravelMultipliers {
-  default?: TravelChannelRates;
-  flights?: TravelChannelRates;
-  hotels?: TravelChannelRates;
-  rentalCars?: TravelChannelRates;
+  flights: TravelChannelRates;
+  hotels: TravelChannelRates;
+  rentalCars: TravelChannelRates;
 }
 
 /** Catalog card definition. `id` is stable; `name` is the display label. */
@@ -432,7 +470,8 @@ export interface CatalogCardDefinition {
   annualFee: number;
   baseMultiplier: number;
   multipliers: Partial<Record<CatalogSpendCategory, number>>;
-  travelMultipliers?: TravelMultipliers;
+  /** Portal and direct rates for flights, hotels, and rental cars. */
+  travelMultipliers: TravelMultipliers;
   /** Loyalty programs this card's points can transfer to. */
   transferPartners?: LoyaltyProgramId[];
   /** Loyalty programs this cobranded card earns directly. */
@@ -442,13 +481,11 @@ export interface CatalogCardDefinition {
   rewardType: CardRewardType;
   isPremium: boolean;
   hasLoungeAccess: boolean;
-  /** Declared statement credits / soft perks for behavior-based valuation. */
-  perks?: CardPerks;
   /**
-   * Itemized benefits with user-editable estimates (guinea pig: Amex Gold).
-   * When present, these replace coarse `perks` for personalized benefit value.
+   * Named credits. Each line is priced from a Benefits answer, included
+   * automatically, or left at $0 for the user to value.
    */
-  itemizedBenefits?: ItemizedCardBenefit[];
+  benefits?: CatalogBenefit[];
 }
 
 /**

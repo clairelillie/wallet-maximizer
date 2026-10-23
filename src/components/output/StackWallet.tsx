@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Check, Plane } from "lucide-react";
+import { CardKeepAlertDialog } from "@/components/output/CardKeepAlertDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,12 @@ import {
   findCatalogCardById,
   findCatalogCardByName,
 } from "@/catalog";
+import {
+  captureCardKeepBaseline,
+  findCardsThatLostTheirKeep,
+  type CardKeepAlert,
+  type CardKeepBaseline,
+} from "@/lib/card-keep-alert";
 import { formatSignedMoney } from "@/lib/card-value";
 import {
   annualPointsFromAssignment,
@@ -36,6 +43,8 @@ interface StackWalletProps {
   onSaveCard: (value: SavedCardValue) => void;
   onCompare: () => void;
   allSaved: boolean;
+  /** Drop cards the user no longer wants after a benefit edit. */
+  onRemoveCards: (cardIds: string[]) => void;
 }
 
 type CardFace = {
@@ -169,13 +178,6 @@ const ACTION_STYLES: Record<
   SKIP: { variant: "outline", label: "SKIP" },
 };
 
-function shortName(name: string): string {
-  return name
-    .replace(/\b(American Express|Chase|Capital One|Citi)\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function DetailSection({
   title,
   children,
@@ -190,6 +192,122 @@ function DetailSection({
       </h5>
       <div className="mt-3">{children}</div>
     </div>
+  );
+}
+
+function countedBenefitValue(benefit: BenefitAssessment): number {
+  return benefit.countsInStack === false ? 0 : benefit.effectiveValue;
+}
+
+function choiceSectionsFor(benefits: BenefitAssessment[]): Array<{
+  group: string;
+  options: Array<{ id: string; label: string; benefits: BenefitAssessment[] }>;
+}> {
+  const sections: Array<{
+    group: string;
+    options: Array<{ id: string; label: string; benefits: BenefitAssessment[] }>;
+  }> = [];
+  for (const benefit of benefits) {
+    if (!benefit.choiceGroup || !benefit.choiceOption) continue;
+    let section = sections.find((item) => item.group === benefit.choiceGroup);
+    if (!section) {
+      section = { group: benefit.choiceGroup, options: [] };
+      sections.push(section);
+    }
+    let option = section.options.find((item) => item.id === benefit.choiceOption);
+    if (!option) {
+      option = {
+        id: benefit.choiceOption,
+        label: benefit.choiceOptionLabel ?? benefit.label,
+        benefits: [],
+      };
+      section.options.push(option);
+    }
+    option.benefits.push(benefit);
+  }
+  return sections;
+}
+
+function BenefitValueRow({
+  benefit,
+  loungeTipDismissed,
+  onLoungeFocus,
+  onBenefitOverride,
+}: {
+  benefit: BenefitAssessment;
+  loungeTipDismissed: boolean;
+  onLoungeFocus: () => void;
+  onBenefitOverride: (benefitId: string, value: number) => void;
+}) {
+  const [draft, setDraft] = useState<{ id: string; text: string } | null>(
+    null
+  );
+  const shown =
+    draft?.id === benefit.id ? draft.text : String(benefit.effectiveValue);
+  const overlapNote =
+    benefit.countsInStack === false
+      ? benefit.countedOnCard && benefit.countedOnCard !== benefit.cardName
+        ? `Already counted on ${benefit.countedOnCard}, so this value is not added again.`
+        : (benefit.exclusionNote ?? null)
+      : null;
+
+  return (
+    <li className="space-y-2">
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">{benefit.label}</p>
+          {(benefit.description || benefit.usageAssumption) && (
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {benefit.description ?? benefit.usageAssumption}
+            </p>
+          )}
+          {overlapNote && (
+            <p className="mt-0.5 text-sm text-muted-foreground">{overlapNote}</p>
+          )}
+        </div>
+        {benefit.isEditable ? (
+          <div className="flex items-center gap-2 sm:justify-end">
+            <label className="sr-only" htmlFor={`wallet-benefit-${benefit.id}`}>
+              Your estimate for {benefit.label}
+            </label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                $
+              </span>
+              <Input
+                id={`wallet-benefit-${benefit.id}`}
+                type="number"
+                min={0}
+                max={benefit.maxValue > 0 ? benefit.maxValue : undefined}
+                className="w-[7.25rem] pl-6 font-mono tabular-nums"
+                value={shown}
+                onFocus={() => {
+                  if (benefit.stackGroup === "lounge" && !loungeTipDismissed) {
+                    onLoungeFocus();
+                  }
+                }}
+                onChange={(e) => {
+                  const text = e.target.value;
+                  setDraft({ id: benefit.id, text });
+                  if (text.trim() === "") {
+                    onBenefitOverride(benefit.id, 0);
+                    return;
+                  }
+                  const parsed = parseInt(text, 10);
+                  if (Number.isNaN(parsed)) return;
+                  onBenefitOverride(benefit.id, Math.max(0, parsed));
+                }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">/yr</span>
+          </div>
+        ) : (
+          <span className="font-mono text-sm tabular-nums text-gain sm:text-right">
+            ${benefit.effectiveValue.toLocaleString()}/yr
+          </span>
+        )}
+      </div>
+    </li>
   );
 }
 
@@ -356,18 +474,12 @@ function WalletPanel({
                           "linear-gradient(125deg, transparent 40%, rgba(255,255,255,0.16) 48%, transparent 56%)",
                       }}
                     />
-                    {/* Name sits in the peek strip at the top of each card */}
+                    {/* Full name sits in the peek strip at the top of each card */}
                     <span
                       className="absolute left-2 right-7 top-[7px] truncate text-left text-[10px] font-semibold leading-tight tracking-wide sm:text-[11px]"
                       style={{ color: face.ink }}
                     >
-                      {shortName(card.name) || card.name}
-                    </span>
-                    <span
-                      className="absolute left-2 top-[1.55rem] text-[7px] font-medium uppercase tracking-[0.14em] opacity-70"
-                      style={{ color: face.ink }}
-                    >
-                      {face.label}
+                      {card.name}
                     </span>
                     <span
                       className="absolute left-2 top-[2.55rem] h-2 w-3 rounded-[2px]"
@@ -471,6 +583,7 @@ export function StackWallet({
   onSaveCard,
   onCompare,
   allSaved,
+  onRemoveCards,
 }: StackWalletProps) {
   const firstId = stack[0]?.id ?? "";
   const [selectedId, setSelectedId] = useState(firstId);
@@ -478,9 +591,20 @@ export function StackWallet({
   const [loungeTipDismissedIds, setLoungeTipDismissedIds] = useState<
     Set<string>
   >(() => new Set());
+  const [keepAlerts, setKeepAlerts] = useState<CardKeepAlert[]>([]);
+  const liveRef = useRef({ stack, benefits, cheatSheet });
+  liveRef.current = { stack, benefits, cheatSheet };
+  const baselineRef = useRef<CardKeepBaseline | null>(null);
+  const seenSelectionKey = useRef(selectionKey);
+
+  if (seenSelectionKey.current !== selectionKey) {
+    seenSelectionKey.current = selectionKey;
+    baselineRef.current = null;
+  }
 
   useEffect(() => {
     setSelectedId(firstId);
+    setKeepAlerts([]);
   }, [selectionKey, firstId]);
 
   useEffect(() => {
@@ -491,6 +615,27 @@ export function StackWallet({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [loungeTipOpen]);
+
+  useEffect(() => {
+    const live = liveRef.current;
+    if (!baselineRef.current) {
+      baselineRef.current = captureCardKeepBaseline(live);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const current = liveRef.current;
+      const baseline = baselineRef.current;
+      if (!baseline) return;
+      const alerts = findCardsThatLostTheirKeep(baseline, current);
+      baselineRef.current = captureCardKeepBaseline(current);
+      if (alerts.length === 0) return;
+      setKeepAlerts(alerts);
+      setSelectedId(alerts[0].cardId);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [stack, benefits, cheatSheet]);
 
   const selected = useMemo(
     () => stack.find((c) => c.id === selectedId) ?? stack[0] ?? null,
@@ -513,7 +658,7 @@ export function StackWallet({
   const isSelectedSaved = selected ? Boolean(savedByCardId[selected.id]) : false;
 
   const dismissLoungeTip = () => {
-    const loungeBenefit = cardBenefits.find((b) => b.perkKind === "loungeAccess");
+    const loungeBenefit = cardBenefits.find((b) => b.stackGroup === "lounge");
     if (loungeBenefit) {
       setLoungeTipDismissedIds((prev) => new Set(prev).add(loungeBenefit.id));
     }
@@ -534,8 +679,15 @@ export function StackWallet({
     (sum, row) => sum + annualPointsFromAssignment(row),
     0
   );
+  const choiceSections = choiceSectionsFor(cardBenefits);
+  const estimatedBenefits = cardBenefits.filter(
+    (b) => b.valuedBy !== "manual" && !b.choiceGroup
+  );
+  const manualBenefits = cardBenefits.filter(
+    (b) => b.valuedBy === "manual" && !b.choiceGroup
+  );
   const benefitsTotal = Math.round(
-    cardBenefits.reduce((sum, b) => sum + b.effectiveValue, 0)
+    cardBenefits.reduce((sum, b) => sum + countedBenefitValue(b), 0)
   );
   const annualFee = selected?.annualFee ?? 0;
   const netValue = earningsTotalDollars + benefitsTotal - annualFee;
@@ -673,76 +825,80 @@ export function StackWallet({
                 No statement credits or dollar benefits counted on this card.
               </p>
             ) : (
-              <ul className="space-y-3">
-                <li className="text-sm text-muted-foreground">
-                  Edit each value based on how much you actually use or value
-                  that benefit.
-                </li>
-                {cardBenefits.map((b) => (
-                  <li key={b.id} className="space-y-2">
-                    <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">{b.label}</p>
-                        {(b.description || b.usageAssumption) && (
-                          <p className="mt-0.5 text-sm text-muted-foreground">
-                            {b.description ?? b.usageAssumption}
-                          </p>
-                        )}
-                      </div>
-                      {b.isEditable ? (
-                        <div className="flex items-center gap-2 sm:justify-end">
-                          <label
-                            className="sr-only"
-                            htmlFor={`wallet-benefit-${b.id}`}
-                          >
-                            Your estimate for {b.label}
-                          </label>
-                          <div className="relative">
-                            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                              $
-                            </span>
-                            <Input
-                              id={`wallet-benefit-${b.id}`}
-                              type="number"
-                              min={0}
-                              max={b.maxValue > 0 ? b.maxValue : undefined}
-                              className="w-[7.25rem] pl-6 font-mono tabular-nums"
-                              value={b.effectiveValue}
-                              onFocus={() => {
-                                if (
-                                  b.perkKind === "loungeAccess" &&
-                                  !loungeTipDismissedIds.has(b.id)
-                                ) {
-                                  setLoungeTipOpen(true);
-                                }
-                              }}
-                              onChange={(e) =>
-                                onBenefitOverride(
-                                  b.id,
-                                  Math.max(0, parseInt(e.target.value, 10) || 0)
-                                )
-                              }
-                            />
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            /yr
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="font-mono text-sm tabular-nums text-gain sm:text-right">
-                          ${b.effectiveValue.toLocaleString()}/yr
-                        </span>
-                      )}
+              <div className="space-y-5">
+                {estimatedBenefits.length > 0 && (
+                  <ul className="space-y-3">
+                    <li className="text-sm text-muted-foreground">
+                      Estimated from your Benefits answers. Edit any value that
+                      doesn&apos;t match how you actually use it.
+                    </li>
+                    {estimatedBenefits.map((b) => (
+                      <BenefitValueRow
+                        key={b.id}
+                        benefit={b}
+                        loungeTipDismissed={loungeTipDismissedIds.has(b.id)}
+                        onLoungeFocus={() => setLoungeTipOpen(true)}
+                        onBenefitOverride={onBenefitOverride}
+                      />
+                    ))}
+                  </ul>
+                )}
+                {choiceSections.map((section) => (
+                  <div key={section.group} className="space-y-4">
+                    <div>
+                      <p className="text-sm font-medium">Choose one</p>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        You can use one of these options. The higher value is
+                        added. Edit either side if the other fits you better.
+                      </p>
                     </div>
-                  </li>
+                    {section.options.map((option) => (
+                      <div key={option.id} className="space-y-3">
+                        <p className="text-sm font-medium">{option.label}</p>
+                        <ul className="space-y-3">
+                          {option.benefits.map((b) => (
+                            <BenefitValueRow
+                              key={b.id}
+                              benefit={b}
+                              loungeTipDismissed={loungeTipDismissedIds.has(b.id)}
+                              onLoungeFocus={() => setLoungeTipOpen(true)}
+                              onBenefitOverride={onBenefitOverride}
+                            />
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
                 ))}
-                <li className="flex items-center justify-between border-t border-border/50 pt-2.5 text-sm">
+                {manualBenefits.length > 0 && (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium">Other credits</p>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        Add a value only if you would use it. These start at $0
+                        and are not assumed.
+                      </p>
+                    </div>
+                    <ul className="space-y-3">
+                      {manualBenefits.map((b) => (
+                        <BenefitValueRow
+                          key={b.id}
+                          benefit={b}
+                          loungeTipDismissed={loungeTipDismissedIds.has(b.id)}
+                          onLoungeFocus={() => setLoungeTipOpen(true)}
+                          onBenefitOverride={onBenefitOverride}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-border/50 pt-2.5 text-sm">
                   <span className="text-muted-foreground">Benefits total</span>
                   <span className="font-mono font-semibold tabular-nums">
                     ${benefitsTotal.toLocaleString()}/yr
                   </span>
-                </li>
-              </ul>
+                </div>
+              </div>
             )}
           </DetailSection>
 
@@ -809,6 +965,15 @@ export function StackWallet({
           </div>
         </div>
       )}
+
+      <CardKeepAlertDialog
+        alerts={keepAlerts}
+        onDismiss={() => setKeepAlerts([])}
+        onRemove={() => {
+          onRemoveCards(keepAlerts.map((alert) => alert.cardId));
+          setKeepAlerts([]);
+        }}
+      />
 
       {loungeTipOpen && (
         <div

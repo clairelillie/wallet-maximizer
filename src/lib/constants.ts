@@ -337,8 +337,7 @@ export function getTravelMultiplier(
   category: "flights" | "hotels" | "rentalCars" = "flights"
 ): number {
   if (card.travelMultipliers) {
-    const rates =
-      card.travelMultipliers[category] ?? card.travelMultipliers.default;
+    const rates = card.travelMultipliers[category];
     if (rates) {
       return booksTravelViaPortal ? rates.portal : rates.direct;
     }

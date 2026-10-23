@@ -26,7 +26,7 @@ export function useOptimizerState() {
       isCustom: false,
       annualFee: 95,
       baseMultiplier: 1,
-      multipliers: { dining: 3, grocery: 3 },
+      multipliers: { dining: 3, grocery: 3, gas: 3 },
       keepThisCard: true,
     },
     {
@@ -35,7 +35,7 @@ export function useOptimizerState() {
       ecosystem: "amex",
       name: "Amex Gold",
       isCustom: false,
-      annualFee: 250,
+      annualFee: 325,
       baseMultiplier: 1,
       multipliers: { dining: 4, grocery: 4 },
       keepThisCard: true,
@@ -98,6 +98,39 @@ export function useOptimizerState() {
     [cards, spending, preferences]
   );
 
+  const removeCardsFromStack = useCallback(
+    (cardIds: string[]) => {
+      if (cardIds.length === 0) return;
+      const idSet = new Set(cardIds);
+      const shown =
+        result.alternativeStacks.find((alt) => alt.isPrimary)?.stack ??
+        result.stack;
+      const names = new Set(
+        shown
+          .filter((card) => idSet.has(card.id))
+          .map((card) => card.name.trim().toLowerCase())
+      );
+      const nextCards = cards.filter(
+        (card) =>
+          !idSet.has(card.id) && !names.has(card.name.trim().toLowerCase())
+      );
+      setCards(nextCards);
+      setResult((current) =>
+        revalueOptimizationResult(
+          current,
+          {
+            cards: nextCards,
+            spending,
+            preferences,
+            benefitOverrides,
+          },
+          cardIds
+        )
+      );
+    },
+    [cards, spending, preferences, benefitOverrides, result]
+  );
+
   const resetBenefitOverrides = useCallback(() => {
     setBenefitOverrides({});
     if (!hasCalculated) return;
@@ -135,6 +168,7 @@ export function useOptimizerState() {
     isStale,
     calculate,
     updateBenefitOverride,
+    removeCardsFromStack,
     resetBenefitOverrides,
     addCard,
     updateCard,

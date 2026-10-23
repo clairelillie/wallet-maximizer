@@ -46,43 +46,22 @@ export const CITI_CARDS: CatalogCardDefinition[] = [
     ],
   },
   {
-    id: "citi-aadvantage-platinum-select",
-    name: "Citi AAdvantage Platinum Select",
-    annualFee: 99,
+    id: "citi-strata",
+    name: "Citi Strata",
+    annualFee: 0,
+    // 3x self-select (streaming, fitness, and similar) is not a spend category here.
     baseMultiplier: 1,
-    // 2x AA purchases, restaurants, and gas; 1x elsewhere.
-    multipliers: { dining: 2, gas: 2 },
+    multipliers: { dining: 2, grocery: 3, gas: 3 },
     travelMultipliers: {
-      flights: { portal: 2, direct: 2 },
-      hotels: { portal: 2, direct: 2 },
-      rentalCars: { portal: 2, direct: 2 },
+      flights: { portal: 1, direct: 1 },
+      hotels: { portal: 5, direct: 1 },
+      rentalCars: { portal: 5, direct: 1 },
     },
-    directEarnPrograms: ["american"],
+    transferPartners: ["american", "jetblue"],
     ecosystem: "citi",
     rewardType: "points",
     isPremium: false,
     hasLoungeAccess: false,
-    benefits: [
-      {
-        id: "aa-free-checked-bag",
-        label: "First checked bag free",
-        description:
-          "Your first checked bag is free on domestic American Airlines itineraries for you and up to 4 companions traveling with you on the same reservation.",
-        maxAnnualValue: 480,
-        valuedBy: "checkedBags",
-        stackRule: "each",
-      },
-      {
-        id: "aa-preferred-boarding",
-        label: "Preferred boarding",
-        description:
-          "Preferred boarding on American Airlines flights for you and up to 4 companions on the same reservation — find your seat sooner and get earlier access to overhead bins.",
-        maxAnnualValue: 100,
-        valuedBy: "checkedBags",
-        segmentScale: 8,
-        stackRule: "each",
-      },
-    ],
   },
   {
     id: "citi-strata-elite",

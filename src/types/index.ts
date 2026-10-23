@@ -58,7 +58,6 @@ export type AirlineProgramSelection = LoyaltyProgramSelection;
 export type RewardsStrategy =
   | "transferable"
   | "portal"
-  | "cobranded"
   | "no_preference";
 
 /**
@@ -474,7 +473,7 @@ export interface CatalogCardDefinition {
   travelMultipliers: TravelMultipliers;
   /** Loyalty programs this card's points can transfer to. */
   transferPartners?: LoyaltyProgramId[];
-  /** Loyalty programs this cobranded card earns directly. */
+  /** Loyalty programs this card earns directly. */
   directEarnPrograms?: LoyaltyProgramId[];
   ecosystem: PreferredEcosystem;
   /** Cash statement credit vs points/miles currency. */

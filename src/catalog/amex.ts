@@ -236,53 +236,6 @@ export const AMEX_CARDS: CatalogCardDefinition[] = [
     ],
   },
   {
-    id: "delta-skymiles-gold",
-    name: "Delta SkyMiles Gold",
-    annualFee: 150,
-    baseMultiplier: 1,
-    multipliers: { dining: 2, grocery: 2 },
-    travelMultipliers: {
-      flights: { portal: 2, direct: 2 },
-      hotels: { portal: 2, direct: 2 },
-      rentalCars: { portal: 2, direct: 2 },
-    },
-    directEarnPrograms: ["delta"],
-    ecosystem: "amex",
-    rewardType: "points",
-    isPremium: false,
-    hasLoungeAccess: false,
-    benefits: [
-      {
-        id: "delta-stays",
-        label: "Delta Stays credit",
-        description:
-          "Up to $100 a year after you book a prepaid hotel or vacation rental through Delta Stays on delta.com.",
-        maxAnnualValue: 100,
-        valuedBy: "hotelNights",
-        stackRule: "each",
-      },
-      {
-        id: "delta-free-checked-bag",
-        label: "First checked bag free",
-        description:
-          "Your first checked bag is free on Delta flights for you and up to eight companions on the same reservation.",
-        maxAnnualValue: 480,
-        valuedBy: "checkedBags",
-        stackRule: "each",
-      },
-      {
-        id: "delta-priority-boarding",
-        label: "Priority boarding",
-        description:
-          "Main Cabin 1 boarding on Delta flights, so you board earlier and have a better shot at overhead space.",
-        maxAnnualValue: 80,
-        valuedBy: "checkedBags",
-        segmentScale: 8,
-        stackRule: "each",
-      },
-    ],
-  },
-  {
     id: "amex-blue-cash-preferred",
     name: "Amex Blue Cash Preferred",
     annualFee: 95,

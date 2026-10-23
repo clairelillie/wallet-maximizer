@@ -469,11 +469,9 @@ export function PreferencesStep({
               })}
             </div>
             <p className="text-xs text-muted-foreground">
-              This can include either co-branded cards that earn that
-              program&apos;s rewards directly or transferable points that can
-              be converted to that program. Not every card in your recommended stack needs
-              to support these programs — we assign complementary roles across
-              the wallet.
+              Transferable points can be converted to that program. Not every
+              card in your recommended stack needs to support these programs —
+              we assign complementary roles across the wallet.
             </p>
           </div>
         </>

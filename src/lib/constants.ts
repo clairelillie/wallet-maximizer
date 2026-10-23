@@ -119,7 +119,7 @@ export const ISSUER_ECOSYSTEM_OPTIONS: Array<{
 /** Concrete rewards strategies (excludes "no_preference"). */
 export const CONCRETE_REWARDS_STRATEGIES: Array<
   Exclude<RewardsStrategy, "no_preference">
-> = ["transferable", "portal", "cobranded"];
+> = ["transferable", "portal"];
 
 export const REWARDS_STRATEGY_OPTIONS: Array<{
   value: RewardsStrategy;
@@ -137,12 +137,6 @@ export const REWARDS_STRATEGY_OPTIONS: Array<{
     label: "Willing to use travel portals",
     description:
       "Yes = use portal earn rates for flights, hotels, and rental cars. No = direct-booking rates only.",
-  },
-  {
-    value: "cobranded",
-    label: "Airline or hotel-specific rewards",
-    description:
-      "Earn miles or points directly through a co-branded airline or hotel card.",
   },
   {
     value: "no_preference",
@@ -421,12 +415,10 @@ function hasPortalRedemption(card: PointsStrategyCard): boolean {
 function cardStrategyFlags(card: PointsStrategyCard): {
   transferable: boolean;
   portal: boolean;
-  cobranded: boolean;
 } {
   return {
     transferable: (card.transferPartners?.length ?? 0) > 0,
     portal: hasPortalRedemption(card),
-    cobranded: (card.directEarnPrograms?.length ?? 0) > 0,
   };
 }
 
@@ -444,10 +436,9 @@ export function matchesAllowedRewardsStrategies(
 
   if (allowed.includes("transferable") && flags.transferable) return true;
   if (allowed.includes("portal") && flags.portal) return true;
-  if (allowed.includes("cobranded") && flags.cobranded) return true;
 
   // Untagged points cards: allow only when every strategy is open.
-  if (!flags.transferable && !flags.portal && !flags.cobranded) {
+  if (!flags.transferable && !flags.portal) {
     return isNoPreferenceStrategies(rewardsStrategies);
   }
   return false;

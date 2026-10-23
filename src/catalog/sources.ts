@@ -10,15 +10,11 @@ export const CARD_SOURCE_URLS: Record<string, string> = {
     "https://www.chase.com/sapphire-cards/personal/reserve",
   "chase-freedom-unlimited":
     "https://www.chase.com/personal/credit-cards/freedom/unlimited",
-  "united-explorer":
-    "https://www.chase.com/personal/credit-cards/united/united-explorer-card",
-  "southwest-rapid-rewards-priority":
-    "https://creditcards.chase.com/southwest/priority-credit-card",
+  "chase-freedom-flex":
+    "https://creditcards.chase.com/cash-back-credit-cards/freedom/flex",
 
   "amex-platinum": "https://www.americanexpress.com/us/credit-cards/card/platinum/",
   "amex-gold": "https://www.americanexpress.com/us/credit-cards/card/gold-card/",
-  "delta-skymiles-gold":
-    "https://www.americanexpress.com/us/credit-cards/card/delta-skymiles-gold-american-express-card/",
   "amex-blue-cash-preferred":
     "https://www.americanexpress.com/us/credit-cards/card/blue-cash-preferred/",
   "amex-blue-cash-everyday":
@@ -34,8 +30,7 @@ export const CARD_SOURCE_URLS: Record<string, string> = {
     "https://www.citi.com/credit-cards/citi-double-cash-credit-card",
   "citi-strata-premier":
     "https://www.citi.com/credit-cards/citi-strata-premier-credit-card",
-  "citi-aadvantage-platinum-select":
-    "https://www.citi.com/credit-cards/citi-aadvantage-platinum-select-world-elite-mastercard",
+  "citi-strata": "https://www.citi.com/credit-cards/citi-strata-credit-card",
   "citi-strata-elite":
     "https://www.citi.com/credit-cards/citi-strata-elite-credit-card",
 };

@@ -384,7 +384,7 @@ describe("Amex Gold vs held Savor", () => {
         preferredEcosystems: ["flexible"],
         rewardTypePreference: "points",
         preferredLoyaltyPrograms: ["delta"],
-        rewardsStrategies: ["transferable", "cobranded"],
+        rewardsStrategies: ["transferable"],
         perkBehaviors: lifestyleHabits,
       },
     });
@@ -876,7 +876,7 @@ describe("airline points path copy", () => {
 });
 
 describe("mixed rewards strategies", () => {
-  it("keeps Delta-capable cards when transferable+cobranded and Delta preferred", () => {
+  it("keeps Delta-capable cards when transferable points and Delta preferred", () => {
     const input = baseInput({
       cards: [],
       preferences: {
@@ -885,7 +885,7 @@ describe("mixed rewards strategies", () => {
         preferredEcosystems: ["flexible"],
         rewardTypePreference: "points",
         preferredLoyaltyPrograms: ["delta"],
-        rewardsStrategies: ["transferable", "cobranded"],
+        rewardsStrategies: ["transferable"],
         perkBehaviors: quietHabits,
       },
     });
@@ -904,7 +904,7 @@ describe("mixed rewards strategies", () => {
         preferredEcosystems: ["flexible"],
         rewardTypePreference: "points",
         preferredLoyaltyPrograms: ["american"],
-        rewardsStrategies: ["transferable", "cobranded"],
+        rewardsStrategies: ["transferable"],
         perkBehaviors: quietHabits,
       },
     });
@@ -913,9 +913,7 @@ describe("mixed rewards strategies", () => {
     expect(pool.some((c) => c.name === "Capital One Venture X")).toBe(false);
     expect(
       pool.some(
-        (c) =>
-          c.name === "Citi Strata Premier" ||
-          c.name === "Citi AAdvantage Platinum Select"
+        (c) => c.name === "Citi Strata Premier" || c.name === "Citi Strata"
       )
     ).toBe(true);
 
@@ -932,23 +930,6 @@ describe("mixed rewards strategies", () => {
     }
   });
 
-  it("excludes portal-only strategies when portal is disallowed", () => {
-    const input = baseInput({
-      preferences: {
-        ...DEFAULT_PREFERENCES,
-        preferredEcosystems: ["flexible"],
-        rewardTypePreference: "points",
-        preferredLoyaltyPrograms: [],
-        rewardsStrategies: ["cobranded"],
-        perkBehaviors: quietHabits,
-      },
-    });
-    const pool = generateCandidatePool(input);
-    expect(pool.some((c) => c.name === "United Explorer")).toBe(true);
-    // Amex Gold is transferable, not cobranded — disallowed.
-    expect(pool.some((c) => c.name === "Amex Gold")).toBe(false);
-  });
-
   it("keeps cash-back category cards eligible beside Delta preference", () => {
     const input = baseInput({
       cards: [userCard("Capital One Savor", { id: "savor" })],
@@ -958,7 +939,7 @@ describe("mixed rewards strategies", () => {
         preferredEcosystems: ["flexible"],
         rewardTypePreference: "no_preference",
         preferredLoyaltyPrograms: ["delta"],
-        rewardsStrategies: ["transferable", "cobranded"],
+        rewardsStrategies: ["transferable"],
         perkBehaviors: quietHabits,
       },
     });

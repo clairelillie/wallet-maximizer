@@ -222,115 +222,21 @@ export const CHASE_CARDS: CatalogCardDefinition[] = [
     hasLoungeAccess: false,
   },
   {
-    id: "united-explorer",
-    name: "United Explorer",
+    id: "chase-freedom-flex",
+    name: "Chase Freedom Flex",
     annualFee: 0,
+    // Quarterly 5% (up to $1,500) and 3% drugstores are not spend categories here.
     baseMultiplier: 1,
-    multipliers: { dining: 2 },
+    multipliers: { dining: 3 },
     travelMultipliers: {
-      flights: { portal: 2, direct: 2 },
-      hotels: { portal: 2, direct: 2 },
-      rentalCars: { portal: 2, direct: 2 },
+      flights: { portal: 5, direct: 1 },
+      hotels: { portal: 5, direct: 1 },
+      rentalCars: { portal: 5, direct: 1 },
     },
-    directEarnPrograms: ["united"],
+    transferPartners: ["united", "southwest", "jetblue"],
     ecosystem: "chase",
     rewardType: "points",
     isPremium: false,
     hasLoungeAccess: false,
-    benefits: [
-      {
-        id: "united-free-checked-bag",
-        label: "First checked bag free",
-        description:
-          "Your first checked bag is free on United-operated flights for you and one companion on the same reservation.",
-        maxAnnualValue: 480,
-        valuedBy: "checkedBags",
-        stackRule: "each",
-      },
-      {
-        id: "united-priority-boarding",
-        label: "Priority boarding",
-        description:
-          "Priority boarding on United flights for you and companions on the same reservation.",
-        maxAnnualValue: 80,
-        valuedBy: "checkedBags",
-        segmentScale: 8,
-        stackRule: "each",
-      },
-      {
-        id: "united-club-passes",
-        label: "United Club passes",
-        description:
-          "Two United Club one-time passes each year. Add a value only if you would use them.",
-        maxAnnualValue: 120,
-        valuedBy: "manual",
-        stackRule: "each",
-      },
-      {
-        id: "united-global-entry",
-        label: "Global Entry or TSA PreCheck",
-        description:
-          "Statement credit up to $120 every four years for the application fee (about $30/year).",
-        maxAnnualValue: 30,
-        valuedBy: "trustedTraveler",
-        stackRule: "once",
-        stackGroup: "trustedTraveler",
-      },
-    ],
-  },
-  {
-    id: "southwest-rapid-rewards-priority",
-    name: "Southwest Rapid Rewards Priority",
-    annualFee: 149,
-    baseMultiplier: 1,
-    multipliers: { dining: 2 },
-    travelMultipliers: {
-      flights: { portal: 3, direct: 3 },
-      hotels: { portal: 3, direct: 3 },
-      rentalCars: { portal: 3, direct: 3 },
-    },
-    directEarnPrograms: ["southwest"],
-    ecosystem: "chase",
-    rewardType: "points",
-    isPremium: false,
-    hasLoungeAccess: false,
-    benefits: [
-      {
-        id: "southwest-travel-credit",
-        label: "Southwest travel credit",
-        description:
-          "$75 a year toward Southwest flights purchased with this card.",
-        maxAnnualValue: 75,
-        valuedBy: "travelCredit",
-        stackRule: "each",
-      },
-      {
-        id: "southwest-anniversary-points",
-        label: "Anniversary points",
-        description:
-          "7,500 anniversary Rapid Rewards points each year, about $75 at 1 cent per point.",
-        maxAnnualValue: 75,
-        valuedBy: "included",
-        stackRule: "each",
-      },
-      {
-        id: "southwest-free-checked-bag",
-        label: "First checked bag free",
-        description:
-          "Your first checked bag is free on Southwest flights when you pay with this card.",
-        maxAnnualValue: 480,
-        valuedBy: "checkedBags",
-        stackRule: "each",
-      },
-      {
-        id: "southwest-upgraded-boarding",
-        label: "Upgraded boardings",
-        description:
-          "Four upgraded boardings a year. Add a value only if you would use them.",
-        maxAnnualValue: 100,
-        valuedBy: "manual",
-        stackRule: "each",
-      },
-    ],
   },
 ];

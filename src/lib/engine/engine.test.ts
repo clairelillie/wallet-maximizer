@@ -467,6 +467,69 @@ describe("overlapping benefits", () => {
         )
       )
     ).toBe(400);
+    const duplicatePass = deduped.find(
+      (b) =>
+        b.stackGroup === "priorityPass" && b.cardName === "Chase Sapphire Reserve"
+    );
+    expect(duplicatePass?.countsInStack).toBe(false);
+    expect(duplicatePass?.effectiveValue).toBe(0);
+    expect(duplicatePass?.countedOnCard).toBe("Capital One Venture X");
+  });
+
+  it("shows $0 for a duplicate lounge whose estimate was left in place", () => {
+    const vx = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Capital One Venture X")!,
+      "vx"
+    );
+    const csr = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name.includes("Sapphire Reserve"))!,
+      "csr"
+    );
+    const habits = { ...heavyTravelHabits, loungeVisits: "3-5" as const };
+    const deduped = dedupeStackBenefits([
+      ...calculatePersonalizedBenefits(vx, habits),
+      ...calculatePersonalizedBenefits(csr, habits),
+    ]);
+    const sapphire = deduped.find((b) => b.id.startsWith("sapphire-lounge"));
+    const priorityPass = deduped.find((b) =>
+      b.id.startsWith("csr-priority-pass")
+    );
+    expect(sapphire?.estimatedValue).toBe(125);
+    expect(sapphire?.countsInStack).toBe(false);
+    expect(sapphire?.effectiveValue).toBe(0);
+    expect(sapphire?.countedOnCard).toBe("Capital One Venture X");
+    expect(priorityPass?.countsInStack).toBe(false);
+    expect(priorityPass?.effectiveValue).toBe(0);
+    expect(
+      sumBenefitValues(deduped.filter((b) => b.stackGroup === "priorityPass"))
+    ).toBe(
+      deduped.find((b) => b.id.startsWith("venture-x-priority-pass"))
+        ?.effectiveValue
+    );
+  });
+
+  it("lets a higher typed lounge value take over from the card that had it", () => {
+    const vx = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Capital One Venture X")!,
+      "vx"
+    );
+    const csr = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name.includes("Sapphire Reserve"))!,
+      "csr"
+    );
+    const habits = { ...heavyTravelHabits, loungeVisits: "3-5" as const };
+    const loungeId = `sapphire-lounge::${csr.name}`;
+    const deduped = dedupeStackBenefits([
+      ...calculatePersonalizedBenefits(vx, habits),
+      ...calculatePersonalizedBenefits(csr, habits, { [loungeId]: 200 }),
+    ]);
+    const sapphire = deduped.find((b) => b.id === loungeId);
+    const capOne = deduped.find((b) => b.id.startsWith("capital-one-lounge"));
+    expect(sapphire?.countsInStack).not.toBe(false);
+    expect(sapphire?.effectiveValue).toBe(200);
+    expect(capOne?.countsInStack).toBe(false);
+    expect(capOne?.effectiveValue).toBe(0);
+    expect(capOne?.countedOnCard).toBe(csr.name);
   });
 
   it("counts lounge once across two lounge cards", () => {

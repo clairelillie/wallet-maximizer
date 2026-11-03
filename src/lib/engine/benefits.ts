@@ -279,9 +279,10 @@ export function calculatePersonalizedBenefits(
 }
 
 /**
- * Mark stack-once benefits (one lounge, one Global Entry credit) so only the
- * highest value counts. Every line stays in the list so a card's editor does
- * not lose the row when the user types a lower amount.
+ * Mark stack-once benefits (one lounge, one Priority Pass, one Global Entry
+ * credit) so only the highest value counts. A duplicate that still has its
+ * automatic estimate is shown as $0. A value the user typed stays visible,
+ * and a higher typed value can become the one that counts.
  */
 export function dedupeStackBenefits(
   benefits: BenefitAssessment[]
@@ -305,10 +306,15 @@ export function dedupeStackBenefits(
     }
     const winner = uniqueBest.get(benefit.stackGroup);
     const countsInStack = winner?.id === benefit.id;
+    if (countsInStack) {
+      return { ...benefit, countsInStack: true, countedOnCard: undefined };
+    }
+    const userEdited = benefit.effectiveValue !== benefit.estimatedValue;
     return {
       ...benefit,
-      countsInStack,
-      countedOnCard: countsInStack ? undefined : winner?.cardName,
+      effectiveValue: userEdited ? benefit.effectiveValue : 0,
+      countsInStack: false,
+      countedOnCard: winner?.cardName,
     };
   });
 }

@@ -1,8 +1,5 @@
 import {
-  matchesAllowedRewardsStrategies,
-  matchesLoyaltyProgramConstraint,
-  matchesPreferredEcosystems,
-  matchesRewardTypePreference,
+  matchesHardPreferences,
   reachesPreferredPrograms,
   usesPortalRates,
 } from "@/lib/constants";
@@ -32,51 +29,6 @@ export interface ScoredCandidate {
   benefitPotential: number;
   /** rewardsValue + benefitPotential − annualFee (screening score only). */
   screeningScore: number;
-}
-
-function matchesHardPreferences(
-  card: Pick<
-    NormalizedCard,
-    | "ecosystem"
-    | "rewardType"
-    | "transferPartners"
-    | "directEarnPrograms"
-    | "travelMultipliers"
-  >,
-  preferences: OptimizerInput["preferences"]
-): boolean {
-  if (
-    !matchesPreferredEcosystems(
-      card.ecosystem,
-      preferences.preferredEcosystems
-    )
-  ) {
-    return false;
-  }
-  if (
-    !matchesRewardTypePreference(
-      card.rewardType,
-      preferences.rewardTypePreference
-    )
-  ) {
-    return false;
-  }
-
-  // Cash back path: no strategy constraints.
-  if (preferences.rewardTypePreference === "cashback") return true;
-
-  // Cash-back cards are allowed whenever reward type permits them — they can
-  // fill category roles beside points cards that hit airline/hotel prefs.
-  if (card.rewardType === "cashback") return true;
-
-  const strategies = preferences.rewardsStrategies ?? ["no_preference"];
-  if (!matchesAllowedRewardsStrategies(card, strategies)) return false;
-
-  return matchesLoyaltyProgramConstraint(
-    card,
-    preferences.preferredLoyaltyPrograms,
-    strategies
-  );
 }
 
 function scoreCard(

@@ -31,6 +31,7 @@ import {
   calculateIncrementalValue,
   calculateStackValue,
 } from "@/lib/engine/stack-value";
+import { hardFilterAdvisory } from "@/lib/hard-filters";
 import { optimizeStack, revalueOptimizationResult } from "@/lib/optimizer";
 import type {
   MonthlySpending,
@@ -1714,6 +1715,82 @@ describe("loyalty constraint tradeoff", () => {
     expect(
       tradeoff!.compliantStack.cardNames.includes("Store points card")
     ).toBe(false);
+  });
+
+  it("prices a loyalty search that ignores portal-eligible cards", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One Venture X", { id: "vx" }),
+        userCard("Capital One Savor", { id: "savor" }),
+      ],
+      spending: constrainedSpend,
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "no_preference",
+        preferredLoyaltyPrograms: ["american"],
+        rewardsStrategies: ["no_preference"],
+        perkBehaviors: {
+          ...quietHabits,
+          travelCreditLikelihood: "yes",
+        },
+      },
+    });
+    const result = optimizeStack(input);
+    const heldNames = ["Capital One Savor", "Capital One Venture X"];
+
+    expect(result.stack.map((card) => card.name).sort()).toEqual(heldNames);
+    expect(result.netGainVsCurrent).toBeGreaterThanOrEqual(-NEAR_TIE_THRESHOLD);
+    const tradeoff = result.constraintTradeoff;
+    expect(tradeoff).toBeDefined();
+    expect(tradeoff!.annualCost).toBeGreaterThan(NEAR_TIE_THRESHOLD);
+    expect(tradeoff!.clauses).toEqual([
+      expect.objectContaining({
+        kind: "loyalty",
+        labels: ["American Airlines"],
+        loyaltyVia: "transferable",
+      }),
+    ]);
+    expect(tradeoff!.excludedCards.map((card) => card.name)).toEqual([
+      "Capital One Venture X",
+    ]);
+    expect(
+      tradeoff!.compliantStack.cardNames.some((name) => {
+        const catalog = CARD_CATALOG.find((card) => card.name === name);
+        return catalog?.transferPartners?.includes("american");
+      })
+    ).toBe(true);
+    expect(hardFilterAdvisory(input.cards, input.preferences)).not.toBeNull();
+  });
+
+  it("keeps the current wallet when a smaller stack is materially behind", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Chase Sapphire Reserve", { id: "csr" }),
+        userCard("Amex Platinum", { id: "plat" }),
+      ],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 1,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "no_preference",
+        rewardsStrategies: ["no_preference"],
+        preferredLoyaltyPrograms: [],
+        perkBehaviors: heavyTravelHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    expect(result.stack.map((card) => card.name).sort()).toEqual([
+      "Amex Platinum",
+      "Chase Sapphire Reserve",
+    ]);
+    expect(result.netGainVsCurrent).toBeGreaterThanOrEqual(-NEAR_TIE_THRESHOLD);
+    const tradeoff = result.constraintTradeoff;
+    expect(tradeoff).toBeDefined();
+    expect(tradeoff!.annualCost).toBeGreaterThan(NEAR_TIE_THRESHOLD);
+    expect(tradeoff!.cause).toMatch(/Limiting the stack to 1 card/);
+    expect(tradeoff!.compliantStack.cardNames).toHaveLength(1);
   });
 
   it("does not price an ecosystem limit the wallet already satisfies", () => {

@@ -1,5 +1,9 @@
 import {
   CATEGORY_LABELS,
+  activeLoyaltyPrograms,
+  describeCardLoyaltyPath,
+  loyaltyProgramLabel,
+  reachesPreferredPrograms,
   usesPortalRates,
 } from "./constants";
 import {
@@ -20,6 +24,7 @@ import {
   generateCandidatePool,
   optimizeStackSize,
   NEAR_TIE_THRESHOLD,
+  SECOND_PREMIUM_CARD_MARGIN,
 } from "./engine";
 import { calculateStackValue, calculateIncrementalValue } from "./engine/stack-value";
 import type {
@@ -85,9 +90,10 @@ export function optimizeStack(input: OptimizerInput): OptimizationResult {
   const currentNetPosition = currentValuation.stackValue;
   let netGainVsCurrent = Math.round(netAnnualPosition - currentNetPosition);
 
-  // Hard filters can crown a stack that merely satisfies them. When that
-  // stack is materially worse, keep the best held subset (must-keep and
-  // maxCards still apply) and price the compliant stack as one alternative.
+  // A preference-satisfying stack can be materially worse than the best
+  // stack from cards the user already holds. Keep that held stack and price
+  // the other one. This includes loyalty programs the search enforces even
+  // when portal redemption kept the card eligible.
   if (held.length > 0 && primary) {
     const keptPick = optimizeStackSize(held, input, primarySize, overrides, {
       ignoreLoyaltyCoverage: true,
@@ -118,41 +124,34 @@ export function optimizeStack(input: OptimizerInput): OptimizationResult {
     }
   }
 
-  // Never recommend a stack worse than the current wallet when the wallet fits
-  // maxCards and every held card is still eligible in the candidate pool.
-  const heldFitMax = held.length > 0 && held.length <= primarySize;
-  const heldEligible =
-    heldFitMax &&
-    held.every((h) =>
-      pool.some((p) => p.name.toLowerCase() === h.name.toLowerCase())
-    );
-  if (
-    heldEligible &&
-    netGainVsCurrent < -NEAR_TIE_THRESHOLD
-  ) {
-    const currentPick = optimizeStackSize(
+  // Any other search result more than $40 behind the current wallet is not
+  // the recommendation: card limit, a second premium card, or a near-tie
+  // the search still lost. Explain it instead of a bare "behind" sentence.
+  if (held.length > 0 && primary && netGainVsCurrent < -NEAR_TIE_THRESHOLD) {
+    const rescue = optimizeStackSize(
       held,
-      {
-        ...input,
-        // Force evaluation of the held wallet only.
-        cards: input.cards.map((c) =>
-          c.name.trim() ? { ...c, keepThisCard: true } : c
-        ),
-      },
-      primarySize,
-      overrides
+      input,
+      Math.max(primarySize, held.length),
+      overrides,
+      { ignoreLoyaltyCoverage: true }
     );
-    if (
-      currentPick &&
-      currentPick.valuation.stackValue >= currentNetPosition - NEAR_TIE_THRESHOLD
-    ) {
-      return finalizeFromPick(
-        currentPick,
-        input,
-        pool,
-        overrides,
-        currentValuation
-      );
+    const worseBy = rescue
+      ? Math.round(rescue.valuation.stackValue - primary.valuation.stackValue)
+      : 0;
+    if (rescue && worseBy > NEAR_TIE_THRESHOLD) {
+      const tradeoff = constraintTradeoffFor(input, rescue, primary, {
+        allowUnnamed: true,
+      });
+      if (tradeoff) {
+        return finalizeFromPick(
+          rescue,
+          input,
+          pool,
+          overrides,
+          currentValuation,
+          tradeoff
+        );
+      }
     }
   }
 
@@ -300,23 +299,36 @@ function finalizeFromPick(
 function constraintTradeoffFor(
   input: OptimizerInput,
   kept: NonNullable<ReturnType<typeof optimizeStackSize>>,
-  compliant: NonNullable<ReturnType<typeof optimizeStackSize>>
+  compliant: NonNullable<ReturnType<typeof optimizeStackSize>>,
+  options?: { allowUnnamed?: boolean }
 ): ConstraintTradeoff | undefined {
   const heldCards = input.cards.filter((card) => card.name.trim());
   if (heldCards.length === 0) return undefined;
-
-  const held = heldCards.map((card) => normalizeUserCard(card));
-  const blocks = heldCardsBlockedByHardFilters(heldCards, input.preferences);
-  const priced = pricedHardFilterBlocks(blocks, input.preferences, held);
-  if (priced.length === 0) return undefined;
 
   const annualCost = Math.round(
     kept.valuation.stackValue - compliant.valuation.stackValue
   );
   if (annualCost <= NEAR_TIE_THRESHOLD) return undefined;
 
-  const clauses = hardFilterClauses(priced, input.preferences);
-  if (clauses.length === 0) return undefined;
+  const held = heldCards.map((card) => normalizeUserCard(card));
+  const blocks = heldCardsBlockedByHardFilters(heldCards, input.preferences);
+  const priced = pricedHardFilterBlocks(blocks, input.preferences, held);
+  let clauses = hardFilterClauses(priced, input.preferences);
+  let excluded = blockLines(priced);
+
+  if (clauses.length === 0) {
+    const inferred = inferUnreachedLoyalty(input, kept, compliant);
+    if (inferred) {
+      clauses = inferred.clauses;
+      excluded = inferred.excluded;
+    }
+  }
+
+  const cause =
+    clauses.length === 0 && options?.allowUnnamed
+      ? inferNonFilterCause(input, kept, compliant)
+      : undefined;
+  if (clauses.length === 0 && !cause) return undefined;
 
   const keptTotal = Math.round(
     kept.valuation.rewardsValue + kept.valuation.benefitsValue
@@ -327,8 +339,9 @@ function constraintTradeoffFor(
   const loyalty = clauses.find((clause) => clause.kind === "loyalty");
   return {
     clauses,
+    cause,
     programLabels: loyalty?.labels ?? [],
-    excludedCards: blockLines(priced),
+    excludedCards: excluded,
     compliantStack: {
       cardNames: compliant.cards.map((card) => card.name),
       netAnnualPosition: compliant.valuation.stackValue,
@@ -342,6 +355,66 @@ function constraintTradeoffFor(
       compliant.valuation.annualFees - kept.valuation.annualFees
     ),
   };
+}
+
+function inferUnreachedLoyalty(
+  input: OptimizerInput,
+  kept: NonNullable<ReturnType<typeof optimizeStackSize>>,
+  compliant: NonNullable<ReturnType<typeof optimizeStackSize>>
+): { clauses: ConstraintTradeoff["clauses"]; excluded: ConstraintTradeoff["excludedCards"] } | undefined {
+  const programs = input.preferences.preferredLoyaltyPrograms ?? [];
+  const targets = activeLoyaltyPrograms(programs);
+  if (targets.length === 0) return undefined;
+  if (input.preferences.rewardTypePreference === "cashback") return undefined;
+
+  const reaches = (cards: typeof kept.cards) =>
+    cards.some((card) => reachesPreferredPrograms(card, programs));
+  if (reaches(kept.cards) || !reaches(compliant.cards)) return undefined;
+
+  const strategies = input.preferences.rewardsStrategies ?? ["no_preference"];
+  const labels = targets.map((program) => loyaltyProgramLabel(program));
+  const excluded = kept.cards
+    .filter(
+      (card) =>
+        card.rewardType !== "cashback" &&
+        !reachesPreferredPrograms(card, programs)
+    )
+    .map((card) => ({
+      name: card.name,
+      reason:
+        describeCardLoyaltyPath(card, programs, strategies) ??
+        `Does not transfer to ${labels.join(" or ")}.`,
+    }));
+
+  return {
+    clauses: [
+      {
+        kind: "loyalty",
+        labels,
+        loyaltyVia: "transferable",
+      },
+    ],
+    excluded,
+  };
+}
+
+function inferNonFilterCause(
+  input: OptimizerInput,
+  kept: NonNullable<ReturnType<typeof optimizeStackSize>>,
+  compliant: NonNullable<ReturnType<typeof optimizeStackSize>>
+): string {
+  const heldCount = input.cards.filter((card) => card.name.trim()).length;
+  if (heldCount > input.preferences.maxCards) {
+    const count = input.preferences.maxCards;
+    return `Limiting the stack to ${count} ${count === 1 ? "card" : "cards"}`;
+  }
+  const heldPremiums = kept.cards.filter((card) => card.isPremium).length;
+  const otherPremiums = compliant.cards.filter((card) => card.isPremium).length;
+  if (heldPremiums >= 2 && otherPremiums < heldPremiums) {
+    return `Requiring a second premium card to clear $${SECOND_PREMIUM_CARD_MARGIN} a year beyond shared lounge access`;
+  }
+  const names = compliant.cards.map((card) => card.name).join(", ");
+  return names ? `Choosing ${names}` : "The stack the search found";
 }
 
 function stampPrimaryAlternative(

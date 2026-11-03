@@ -23,7 +23,7 @@ export function ConstraintTradeoffNote({
 }: {
   tradeoff: ConstraintTradeoff;
 }) {
-  const lead = constraintRuleLead(tradeoff.clauses);
+  const lead = tradeoff.cause ?? constraintRuleLead(tradeoff.clauses);
   const cost = tradeoff.annualCost.toLocaleString();
   const optionLabel = compliantStackTitle(tradeoff.clauses);
 

@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import { ConstraintTradeoffNote } from "@/components/output/ConstraintTradeoffNote";
+import {
+  ConstraintTradeoffNote,
+  rewardsFeesSplitSentence,
+} from "@/components/output/ConstraintTradeoffNote";
 import { Button } from "@/components/ui/button";
 import { formatSignedMoney } from "@/lib/card-value";
 import {
@@ -457,6 +460,7 @@ function OverviewRevealBox({
   rewardTypePreference,
   onContinue,
   constraintTradeoff,
+  alternativeNames = [],
 }: {
   current: OverviewTotals;
   recommended: OverviewTotals;
@@ -464,6 +468,7 @@ function OverviewRevealBox({
   rewardTypePreference: RewardTypePreference;
   onContinue?: () => void;
   constraintTradeoff?: ConstraintTradeoff;
+  alternativeNames?: string[];
 }) {
   const pointsMode = showPointsAsPrimary(rewardTypePreference);
   const currentRewardsDisplay = formatRewardsTotal(
@@ -486,7 +491,7 @@ function OverviewRevealBox({
         <RevealSwoosh active={morphed} />
         <div className="border-b border-border/60 bg-muted/25 px-4 py-3">
           <h3 className="text-base font-semibold tracking-tight">
-            {morphed && !constraintTradeoff
+            {morphed && !constraintTradeoff && netGain >= 0
               ? "Your upgraded overview"
               : "Your current overview"}
           </h3>
@@ -612,19 +617,31 @@ function OverviewRevealBox({
               </p>
             </>
           ) : netGain < 0 ? (
-            <>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-800 dark:text-amber-300 sm:text-base">
-                With the recommended stack
+            <div className="space-y-3 text-left">
+              <p className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+                Keeping your current cards is the recommendation.
               </p>
-              <p className="mt-3 text-balance text-3xl font-bold tracking-tight text-amber-900 dark:text-amber-200 sm:text-5xl">
-                You’d be{" "}
-                <span className="font-mono tabular-nums">{gainDollars}</span>{" "}
-                behind
+              <p className="text-sm leading-relaxed text-foreground sm:text-base">
+                This stack costs about{" "}
+                <span className="font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+                  {gainDollars}
+                </span>{" "}
+                a year versus keeping your current cards.
               </p>
-              <p className="mt-3 text-base text-amber-800/90 dark:text-amber-300/90 sm:text-lg">
-                per year versus your current wallet on a net basis
+              <p className="text-sm text-muted-foreground">
+                {rewardsFeesSplitSentence(
+                  recommended.rewards +
+                    recommended.benefits -
+                    (current.rewards + current.benefits),
+                  recommended.fees - current.fees
+                )}
               </p>
-            </>
+              {alternativeNames.length > 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  The search preferred {alternativeNames.join(", ")}.
+                </p>
+              ) : null}
+            </div>
           ) : (
             <>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:text-base">
@@ -695,6 +712,7 @@ function SpendRevealTable({
   onBackToStack,
   onEditInputs,
   onContinueToNextSteps,
+  alternativeNames = [],
 }: {
   rows: RevealRow[];
   benefitRows: BenefitRevealRow[];
@@ -710,6 +728,7 @@ function SpendRevealTable({
   onBackToStack: () => void;
   onEditInputs: () => void;
   onContinueToNextSteps: () => void;
+  alternativeNames?: string[];
 }) {
   const morphed = phase === "morph";
   const meta = STEP_META[step];
@@ -723,7 +742,8 @@ function SpendRevealTable({
     rewardTypePreference
   );
   const totalImproved = morphed && recommendedTotal > currentTotal;
-  const keepingCurrent = Boolean(constraintTradeoff);
+  const overviewGap = Math.round(recommendedOverview.net - currentOverview.net);
+  const keepingCurrent = Boolean(constraintTradeoff) || overviewGap < 0;
 
   const title =
     keepingCurrent && morphed
@@ -978,6 +998,7 @@ function SpendRevealTable({
             morphed={morphed}
             rewardTypePreference={rewardTypePreference}
             constraintTradeoff={constraintTradeoff}
+            alternativeNames={alternativeNames}
             onContinue={onContinueToNextSteps}
           />
         )}
@@ -1162,6 +1183,10 @@ export function ComparisonScreen({
       showNextArrow={showNext}
       rewardTypePreference={rewardTypePreference}
       constraintTradeoff={result.constraintTradeoff}
+      alternativeNames={
+        result.constraintTradeoff?.compliantStack.cardNames ??
+        savedCards.map((card) => card.cardName)
+      }
       onNext={goNext}
       onBack={goBack}
       onBackToStack={onBackToStack}

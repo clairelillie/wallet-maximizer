@@ -456,6 +456,12 @@ export interface HardFilterClause {
  */
 export interface ConstraintTradeoff {
   clauses: HardFilterClause[];
+  /**
+   * Lead-in when the gap is not one of the four hard filters
+   * (card limit, second premium card, or the search's other preference).
+   * Already capitalized, without the "costs about $X" tail.
+   */
+  cause?: string;
   /** Loyalty program names when a loyalty clause is part of the priced rule. */
   programLabels: string[];
   excludedCards: { name: string; reason: string }[];
@@ -541,6 +547,12 @@ export interface CatalogCardDefinition {
   ecosystem: PreferredEcosystem;
   /** Cash statement credit vs points/miles currency. */
   rewardType: CardRewardType;
+  /**
+   * Catalog ids of points cards that can turn this cash back into their
+   * points at 1 cent = 1 point. The card stays cash back unless one of
+   * those cards is in the same stack.
+   */
+  convertsToPointsWith?: string[];
   isPremium: boolean;
   hasLoungeAccess: boolean;
   /**
@@ -567,6 +579,8 @@ export interface NormalizedCard {
   directEarnPrograms?: LoyaltyProgramId[];
   ecosystem: PreferredEcosystem | "unknown";
   rewardType: CardRewardType | "unknown";
+  /** See CatalogCardDefinition.convertsToPointsWith. */
+  convertsToPointsWith?: string[];
   isPremium: boolean;
   hasLoungeAccess: boolean;
   isFromUserPortfolio: boolean;

@@ -170,6 +170,7 @@ export function normalizeUserCard(card: UserCreditCard): NormalizedCard {
         ? catalogItem?.ecosystem || resolveCardEcosystem(name)
         : card.ecosystem,
     rewardType: catalogItem?.rewardType ?? resolveCardRewardType(name),
+    convertsToPointsWith: catalogItem?.convertsToPointsWith,
     isPremium: catalogItem?.isPremium ?? card.annualFee >= 400,
     hasLoungeAccess,
     isFromUserPortfolio: true,
@@ -194,6 +195,7 @@ export function catalogToNormalized(
     directEarnPrograms: catalogItem.directEarnPrograms,
     ecosystem: catalogItem.ecosystem,
     rewardType: catalogItem.rewardType,
+    convertsToPointsWith: catalogItem.convertsToPointsWith,
     isPremium: catalogItem.isPremium,
     hasLoungeAccess: catalogItem.hasLoungeAccess,
     isFromUserPortfolio: false,

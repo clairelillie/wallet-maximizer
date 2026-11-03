@@ -1,5 +1,9 @@
 import { normalizeUserCard } from "@/lib/card-utils";
 import {
+  asConvertedPointsCard,
+  pointsConversionHost,
+} from "@/lib/points-pairing";
+import {
   activeLoyaltyPrograms,
   allowedConcreteStrategies,
   describeCardLoyaltyPath,
@@ -80,11 +84,19 @@ export function heldCardsBlockedByHardFilters(
   const programs = preferences.preferredLoyaltyPrograms ?? [];
   const rewardPref = preferences.rewardTypePreference ?? "no_preference";
   const blocked: HeldCardHardFilterBlock[] = [];
+  const held = cards
+    .filter((card) => card.name.trim())
+    .map((card) => normalizeUserCard(card));
 
   for (const card of cards) {
     const name = card.name.trim();
     if (!name) continue;
-    const view = normalizeUserCard(card);
+    const raw = normalizeUserCard(card);
+    // Points preference: Savor cash back becomes Venture miles when the
+    // miles card is already in the wallet. Cash-back preference keeps it cash.
+    const host =
+      rewardPref === "points" ? pointsConversionHost(raw, held) : undefined;
+    const view = host ? asConvertedPointsCard(raw, host) : raw;
     const parts: HardFilterReasonPart[] = [];
 
     if (
@@ -340,11 +352,85 @@ export interface HardFilterAdvisory {
   showEditPrograms: boolean;
 }
 
+/**
+ * Points cards that do not actually transfer to the selected programs.
+ * Portal redemption can satisfy the card-level filter, but the search still
+ * looks for a real transfer path and can crown a worse stack.
+ */
+function cardsMissingTransferPath(
+  cards: UserCreditCard[],
+  preferences: UserPreferences
+): HeldCardHardFilterBlock[] {
+  const programs = preferences.preferredLoyaltyPrograms ?? [];
+  if (activeLoyaltyPrograms(programs).length === 0) return [];
+  if (preferences.rewardTypePreference === "cashback") return [];
+
+  const held = cards
+    .filter((card) => card.name.trim())
+    .map((card) => normalizeUserCard(card));
+  if (held.some((card) => reachesPreferredPrograms(card, programs))) return [];
+
+  const strategies = preferences.rewardsStrategies ?? ["no_preference"];
+  const missing: HeldCardHardFilterBlock[] = [];
+  for (const card of held) {
+    if (card.rewardType === "cashback") continue;
+    if (reachesPreferredPrograms(card, programs)) continue;
+    missing.push({
+      name: card.name,
+      ecosystem: card.ecosystem,
+      parts: [
+        {
+          kind: "loyalty",
+          reason:
+            describeCardLoyaltyPath(card, programs, strategies) ??
+            `Does not transfer to ${joinDisjunction(
+              activeLoyaltyPrograms(programs).map((program) =>
+                loyaltyProgramLabel(program)
+              )
+            )}.`,
+        },
+      ],
+    });
+  }
+  return missing;
+}
+
+function withMissingTransferPath(
+  blocks: HeldCardHardFilterBlock[],
+  cards: UserCreditCard[],
+  preferences: UserPreferences
+): HeldCardHardFilterBlock[] {
+  const extra = cardsMissingTransferPath(cards, preferences);
+  if (extra.length === 0) return blocks;
+
+  const merged = blocks.map((block) => ({
+    ...block,
+    parts: [...block.parts],
+  }));
+  const byName = new Map(merged.map((block) => [block.name, block]));
+  for (const block of extra) {
+    const existing = byName.get(block.name);
+    if (!existing) {
+      merged.push(block);
+      byName.set(block.name, block);
+      continue;
+    }
+    if (!existing.parts.some((part) => part.kind === "loyalty")) {
+      existing.parts.push(...block.parts);
+    }
+  }
+  return merged;
+}
+
 export function hardFilterAdvisory(
   cards: UserCreditCard[],
   preferences: UserPreferences
 ): HardFilterAdvisory | null {
-  const blocks = heldCardsBlockedByHardFilters(cards, preferences);
+  const blocks = withMissingTransferPath(
+    heldCardsBlockedByHardFilters(cards, preferences),
+    cards,
+    preferences
+  );
   if (blocks.length === 0) return null;
 
   const kinds = new Set(blocks.flatMap((block) => block.parts.map((part) => part.kind)));

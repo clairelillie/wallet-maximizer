@@ -45,6 +45,7 @@ export function constraintRuleLead(clauses: HardFilterClause[]): string {
 }
 
 export function compliantStackTitle(clauses: HardFilterClause[]): string {
+  if (clauses.length === 0) return "Best stack the search found";
   if (clauses.length === 1) {
     const clause = clauses[0];
     if (clause.kind === "loyalty" && clause.loyaltyVia !== "portal") {

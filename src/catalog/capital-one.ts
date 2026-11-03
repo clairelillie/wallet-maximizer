@@ -112,6 +112,9 @@ export const CAPITAL_ONE_CARDS: CatalogCardDefinition[] = [
     },
     ecosystem: "capital-one",
     rewardType: "cashback",
+    // Cash back until a Venture miles card is in the stack. Then rewards
+    // convert at 1 cent = 1 mile and can transfer with that card.
+    convertsToPointsWith: ["capital-one-venture-x", "capital-one-venture"],
     isPremium: false,
     hasLoungeAccess: false,
   },
@@ -128,6 +131,7 @@ export const CAPITAL_ONE_CARDS: CatalogCardDefinition[] = [
     },
     ecosystem: "capital-one",
     rewardType: "cashback",
+    convertsToPointsWith: ["capital-one-venture-x", "capital-one-venture"],
     isPremium: false,
     hasLoungeAccess: false,
   },

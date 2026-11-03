@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ConstraintTradeoffNote } from "@/components/output/ConstraintTradeoffNote";
+import { NEAR_TIE_THRESHOLD } from "@/lib/engine";
 import { RewardsBreakdownDetails } from "@/components/output/RewardsBreakdownDetails";
 import type {
   CardFeeVerdict,
@@ -191,6 +192,15 @@ export function AnnualFeeVerdict({
                   <>
                     The optimized stack is about even with your current wallet
                     on a net basis
+                  </>
+                ) : Math.abs(netGainVsCurrent) > NEAR_TIE_THRESHOLD ? (
+                  <>
+                    Keeping your current cards is the recommendation. This
+                    stack costs about{" "}
+                    <span className="tabular-nums text-amber-700 dark:text-amber-400">
+                      ${Math.abs(netGainVsCurrent).toLocaleString()}
+                    </span>{" "}
+                    a year versus keeping your current cards.
                   </>
                 ) : (
                   <>

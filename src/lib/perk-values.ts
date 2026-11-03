@@ -1,5 +1,4 @@
 import type {
-  CheckedBagsBucket,
   HotelNightsBucket,
   LoungeVisitsBucket,
   MonthlySpendBucket,
@@ -38,17 +37,6 @@ export const TRAVEL_CREDIT_OPTIONS: Array<{
   { value: "yes", label: "Yes" },
   { value: "maybe", label: "Maybe" },
   { value: "no", label: "No" },
-];
-
-export const CHECKED_BAGS_OPTIONS: Array<{
-  value: CheckedBagsBucket;
-  label: string;
-}> = [
-  { value: "0", label: "0" },
-  { value: "1-2", label: "1–2" },
-  { value: "3-5", label: "3–5" },
-  { value: "6-10", label: "6–10" },
-  { value: "10+", label: "10+" },
 ];
 
 export const MONTHLY_SPEND_OPTIONS: Array<{
@@ -183,7 +171,6 @@ export function benefitProfileSummary(behaviors: PerkBehaviorAnswers): {
         : `${optionLabel(LOUNGE_VISIT_OPTIONS, behaviors.loungeVisits).replace(" times a year", "")} lounge visits/year`,
       `${optionLabel(HOTEL_NIGHTS_OPTIONS, behaviors.hotelNights)} hotel nights/year`,
       travelCreditLabel,
-      `${optionLabel(CHECKED_BAGS_OPTIONS, behaviors.checkedBagsPerYear)} checked bags/year`,
     ],
     lifestyle: [
       `${optionLabel(MONTHLY_SPEND_OPTIONS, behaviors.rideshareMonthly)}/month rideshare`,

@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  CHECKED_BAGS_OPTIONS,
   HOTEL_NIGHTS_OPTIONS,
   LOUNGE_VISIT_OPTIONS,
   MONTHLY_SPEND_CAP100_OPTIONS,
@@ -135,20 +134,6 @@ export function BenefitsInputs({
                 key={option.value}
                 selected={behaviors.travelCreditLikelihood === option.value}
                 onClick={() => set("travelCreditLikelihood", option.value)}
-              >
-                {option.label}
-              </ChoiceButton>
-            ))}
-          </div>
-        </QuestionBlock>
-
-        <QuestionBlock title="How many checked bags do you typically pay for per year?">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {CHECKED_BAGS_OPTIONS.map((option) => (
-              <ChoiceButton
-                key={option.value}
-                selected={behaviors.checkedBagsPerYear === option.value}
-                onClick={() => set("checkedBagsPerYear", option.value)}
               >
                 {option.label}
               </ChoiceButton>

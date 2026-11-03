@@ -5,10 +5,14 @@ import {
 } from "@/lib/card-utils";
 import {
   activeLoyaltyPrograms,
-  describeCardLoyaltyPath,
   reachesPreferredPrograms,
   usesPortalRates,
 } from "@/lib/constants";
+import {
+  cardRewardsInStack,
+  pointsConversionHost,
+  pointsPairingLoyaltyPath,
+} from "@/lib/points-pairing";
 import { keepCardsFromInput } from "@/lib/engine/candidate-pool";
 import {
   buildStackCard,
@@ -151,6 +155,11 @@ export function optimizeStackSize(
      * the hard filters disqualified.
      */
     skipMissingKeeps?: boolean;
+    /**
+     * Points preference: a cash-back card may stay only when a miles card
+     * in the same stack can convert that cash back. Must-keeps stay either way.
+     */
+    requirePointsPairing?: boolean;
   }
 ): OptimizedStackPick | null {
   const keeps = keepCardsFromInput(input.cards);
@@ -190,7 +199,14 @@ export function optimizeStackSize(
     cards.filter(
       (c) =>
         earningNames.has(c.name) &&
-        reachesPreferredPrograms(c, input.preferences.preferredLoyaltyPrograms)
+        reachesPreferredPrograms(
+          cardRewardsInStack(
+            c,
+            cards,
+            input.preferences.rewardTypePreference
+          ),
+          input.preferences.preferredLoyaltyPrograms
+        )
     ).length;
 
   const preferredPrograms = activeLoyaltyPrograms(
@@ -240,6 +256,18 @@ export function optimizeStackSize(
   const heldInPool = pool.filter((c) => c.isFromUserPortfolio);
 
   const consider = (stack: NormalizedCard[]) => {
+    if (
+      options?.requirePointsPairing &&
+      stack.some(
+        (card) =>
+          card.rewardType === "cashback" &&
+          !keepNames.has(card.name.toLowerCase()) &&
+          !pointsConversionHost(card, stack)
+      )
+    ) {
+      return;
+    }
+
     const valuation = calculateStackValue(
       stack,
       input.spending,
@@ -474,7 +502,10 @@ function toStackCards(
     const isHeld = heldNames.has(card.name.toLowerCase());
     const action = isKeep || isHeld ? "KEEP" : "ADD";
     // Held but not must-keep that made the cut still KEEP (already in wallet).
-    const why = explainCard(
+    const earnsRewards = valuation.assignments.some(
+      (row) => row.cardName === card.name && row.monthlySpend > 0
+    );
+    let why = explainCard(
       card,
       meta.categories,
       valuation.assignments,
@@ -485,15 +516,15 @@ function toStackCards(
       isKeep,
       input.preferences.rewardTypePreference
     );
-    const earnsRewards = valuation.assignments.some(
-      (row) => row.cardName === card.name && row.monthlySpend > 0
-    );
+    const host =
+      earnsRewards && input.preferences.rewardTypePreference !== "cashback"
+        ? pointsConversionHost(card, stack)
+        : undefined;
+    if (host) {
+      why += ` Cash back on this card converts to ${host.name} miles at 1 cent per mile.`;
+    }
     const loyaltyPath = earnsRewards
-      ? (describeCardLoyaltyPath(
-          card,
-          input.preferences.preferredLoyaltyPrograms ?? [],
-          input.preferences.rewardsStrategies ?? ["no_preference"]
-        ) ?? undefined)
+      ? pointsPairingLoyaltyPath(card, stack, input.preferences)
       : undefined;
     return buildStackCard(
       { ...card, isFromUserPortfolio: isHeld || card.isFromUserPortfolio },
@@ -513,7 +544,8 @@ export function buildAlternativeSummaries(
   primarySize: MaxCards,
   primaryValue: number,
   currentNetPosition: number,
-  overrides: BenefitOverrides = {}
+  overrides: BenefitOverrides = {},
+  options?: { requirePointsPairing?: boolean }
 ): AlternativeStackSummary[] {
   const sizes: MaxCards[] = [1, 2, 3, 4, 5];
   const labels: Record<MaxCards, string> = {
@@ -525,7 +557,7 @@ export function buildAlternativeSummaries(
   };
 
   return sizes.map((size) => {
-    const pick = optimizeStackSize(pool, input, size, overrides);
+    const pick = optimizeStackSize(pool, input, size, overrides, options);
     const value = pick?.valuation.stackValue ?? 0;
     const rewardsSubtotal = pick?.valuation.rewardsValue ?? 0;
     const benefitsSubtotal = pick?.valuation.benefitsValue ?? 0;

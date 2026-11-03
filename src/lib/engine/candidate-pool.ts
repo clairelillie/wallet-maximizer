@@ -1,5 +1,6 @@
 import {
   matchesHardPreferences,
+  matchesPreferredEcosystems,
   reachesPreferredPrograms,
   usesPortalRates,
 } from "@/lib/constants";
@@ -83,6 +84,34 @@ export function generateCandidatePool(
   const catalog = CARD_CATALOG.filter((c) =>
     matchesHardPreferences(c, preferences)
   ).map((c) => catalogToNormalized(c, c.id));
+
+  // Points search: a cash-back card can join once a miles card that accepts
+  // its conversion is already eligible (held, or in the catalog pool).
+  if (preferences.rewardTypePreference === "points") {
+    const hostIds = new Set<string>();
+    for (const card of [...keepCards, ...existingCards, ...catalog]) {
+      if (card.rewardType === "points" && card.catalogId) {
+        hostIds.add(card.catalogId);
+      }
+    }
+    for (const definition of CARD_CATALOG) {
+      if (definition.rewardType !== "cashback") continue;
+      if (
+        !definition.convertsToPointsWith?.some((id) => hostIds.has(id))
+      ) {
+        continue;
+      }
+      if (
+        !matchesPreferredEcosystems(
+          definition.ecosystem,
+          preferences.preferredEcosystems
+        )
+      ) {
+        continue;
+      }
+      catalog.push(catalogToNormalized(definition, definition.id));
+    }
+  }
 
   const byIdentity = new Map<string, NormalizedCard>();
   const claim = (card: NormalizedCard) => {

@@ -1,6 +1,12 @@
 const { execFileSync } = require("node:child_process");
 const path = require("node:path");
 
+// Vercel and CI check out the repo outside ~/Developer. The iCloud guard is
+// only meaningful on a local Mac, so hosted builds skip it.
+if (process.env.VERCEL || process.env.CI) {
+  process.exit(0);
+}
+
 const LOCAL_REPO = path.resolve(
   process.env.HOME ?? "",
   "Developer",

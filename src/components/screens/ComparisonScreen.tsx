@@ -865,16 +865,19 @@ function SpendRevealTable({
                           <td className="px-3 py-3 sm:px-4">
                             {showUpgrade && row.recommended ? (
                               <span className="block space-y-0.5">
-                                <span className="block font-medium text-red-600 line-through decoration-2 decoration-red-600/80 animate-in fade-in duration-300 dark:text-red-400 dark:decoration-red-400/80">
-                                  {row.current.cardName}
-                                </span>
-                                <span className="block animate-in fade-in slide-in-from-bottom-1 font-semibold text-gain duration-500 fill-mode-both">
+                                <span className="block font-semibold text-gain">
                                   {row.recommended.cardName}
+                                </span>
+                                <span className="block text-xs text-red-600 line-through decoration-2 decoration-red-600/80 dark:text-red-400 dark:decoration-red-400/80">
+                                  was {row.current.cardName}
                                 </span>
                               </span>
                             ) : (
                               <span className="font-medium">
-                                {row.current.cardName}
+                                {(morphed && row.recommended
+                                  ? row.recommended
+                                  : row.current
+                                ).cardName}
                               </span>
                             )}
                           </td>

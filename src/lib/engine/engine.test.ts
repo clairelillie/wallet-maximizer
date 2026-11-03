@@ -429,6 +429,46 @@ describe("Amex Gold vs held Savor", () => {
 });
 
 describe("overlapping benefits", () => {
+  it("lists Priority Pass on Venture X and counts it once", () => {
+    const vx = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Capital One Venture X")!,
+      "vx"
+    );
+    const csr = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name.includes("Sapphire Reserve"))!,
+      "csr"
+    );
+    const vxLines = calculatePersonalizedBenefits(vx, heavyTravelHabits);
+    const lounge = vxLines.find((b) => b.id.startsWith("capital-one-lounge"));
+    const priorityPass = vxLines.find((b) =>
+      b.id.startsWith("venture-x-priority-pass")
+    );
+    expect(lounge?.stackGroup).toBe("lounge");
+    expect(lounge?.effectiveValue).toBe(250);
+    expect(priorityPass?.stackGroup).toBe("priorityPass");
+    expect(priorityPass?.effectiveValue).toBe(150);
+    expect((lounge?.effectiveValue ?? 0) + (priorityPass?.effectiveValue ?? 0)).toBe(
+      400
+    );
+
+    const deduped = dedupeStackBenefits([
+      ...vxLines,
+      ...calculatePersonalizedBenefits(csr, heavyTravelHabits),
+    ]);
+    expect(
+      deduped.filter(
+        (b) => b.stackGroup === "priorityPass" && b.countsInStack !== false
+      )
+    ).toHaveLength(1);
+    expect(
+      sumBenefitValues(
+        deduped.filter(
+          (b) => b.stackGroup === "lounge" || b.stackGroup === "priorityPass"
+        )
+      )
+    ).toBe(400);
+  });
+
   it("counts lounge once across two lounge cards", () => {
     const plat = catalogToNormalized(
       CARD_CATALOG.find((c) => c.name === "Amex Platinum")!,
@@ -549,6 +589,80 @@ describe("overlapping benefits", () => {
     );
     expect(edited.stack.map((card) => card.name)).toEqual([
       "Capital One Venture X",
+    ]);
+  });
+});
+
+describe("second premium card", () => {
+  it("does not add Venture X beside Sapphire Reserve for shared lounge access", () => {
+    const input = baseInput({
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 3,
+        preferredEcosystems: ["chase", "capital-one"],
+        perkBehaviors: heavyTravelHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    expect(
+      result.stack.some((c) => c.name === "Chase Sapphire Reserve")
+    ).toBe(true);
+    expect(
+      result.stack.some((c) => c.name === "Capital One Venture X")
+    ).toBe(false);
+  });
+
+  it("does not add Venture X when Sapphire Reserve is already in the wallet", () => {
+    const input = baseInput({
+      cards: [userCard("Chase Sapphire Reserve", { id: "csr" })],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 4,
+        preferredEcosystems: ["flexible"],
+        perkBehaviors: heavyTravelHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    expect(
+      result.stack.some((c) => c.name === "Chase Sapphire Reserve")
+    ).toBe(true);
+    expect(
+      result.stack.some((c) => c.name === "Capital One Venture X")
+    ).toBe(false);
+  });
+
+  it("still pairs two premium cards when the second card's other benefits clear the fee by a wide margin", () => {
+    const input = baseInput({
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        perkBehaviors: heavyTravelHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    expect(result.stack.map((c) => c.name).sort()).toEqual([
+      "Amex Platinum",
+      "Chase Sapphire Reserve",
+    ]);
+  });
+
+  it("keeps both premium cards when the user marked them must-keep", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One Venture X", { keepThisCard: true, id: "vx" }),
+        userCard("Chase Sapphire Reserve", { keepThisCard: true, id: "csr" }),
+      ],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["flexible"],
+        perkBehaviors: heavyTravelHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    expect(result.stack.map((c) => c.name).sort()).toEqual([
+      "Capital One Venture X",
+      "Chase Sapphire Reserve",
     ]);
   });
 });
@@ -928,6 +1042,63 @@ describe("mixed rewards strategies", () => {
           catalog?.rewardType === "cashback"
       ).toBe(true);
     }
+  });
+
+  it("does not add a transfer card that earns no rewards", () => {
+    const input = baseInput({
+      cards: [],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 4,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "points",
+        preferredLoyaltyPrograms: ["american"],
+        rewardsStrategies: ["transferable"],
+        perkBehaviors: {
+          ...quietHabits,
+          loungeVisits: "3-5",
+        },
+      },
+    });
+    const result = optimizeStack(input);
+    expect(result.stack.some((c) => c.name === "Citi Strata Elite")).toBe(
+      false
+    );
+    for (const card of result.stack) {
+      const earned = result.cheatSheet
+        .filter((row) => row.cardName === card.name && row.monthlySpend > 0)
+        .reduce((sum, row) => sum + row.annualReward, 0);
+      expect(earned).toBeGreaterThan(0);
+    }
+    expect(
+      result.stack.some((c) => c.loyaltyPath?.includes("American Airlines"))
+    ).toBe(true);
+  });
+
+  it("drops a held Strata Elite that earns nothing toward American", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Amex Gold", { id: "gold", keepThisCard: false }),
+        userCard("Chase Sapphire Preferred", { id: "csp", keepThisCard: false }),
+        userCard("Citi Double Cash", { id: "dc", keepThisCard: false }),
+        userCard("Citi Strata Elite", { id: "elite", keepThisCard: false }),
+      ],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 4,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "no_preference",
+        preferredLoyaltyPrograms: ["american"],
+        rewardsStrategies: ["transferable"],
+        perkBehaviors: {
+          ...quietHabits,
+          loungeVisits: "3-5",
+        },
+      },
+    });
+    const result = optimizeStack(input);
+    const elite = result.stack.find((c) => c.name === "Citi Strata Elite");
+    expect(elite).toBeUndefined();
   });
 
   it("keeps cash-back category cards eligible beside Delta preference", () => {

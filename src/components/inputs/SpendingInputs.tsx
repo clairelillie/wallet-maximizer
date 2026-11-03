@@ -1,9 +1,29 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { MonthlySpending } from "@/types";
+
+/** Drop leading zeros ("05" → "5") while keeping "0", "0.5", and "10.05". */
+function normalizeSpendDraft(raw: string): string {
+  const cleaned = raw.replace(/[^\d.]/g, "");
+  const dotIndex = cleaned.indexOf(".");
+  const wholeRaw = dotIndex === -1 ? cleaned : cleaned.slice(0, dotIndex);
+  const fraction =
+    dotIndex === -1 ? null : cleaned.slice(dotIndex + 1).replace(/\./g, "");
+  const whole = wholeRaw.replace(/^0+(?=\d)/, "");
+  if (fraction === null) return whole;
+  if (whole === "" && fraction === "") return ".";
+  return `${whole === "" ? "0" : whole}.${fraction}`;
+}
+
+function parseSpendDraft(draft: string): number {
+  if (draft === "" || draft === ".") return 0;
+  const parsed = parseFloat(draft);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 const TOP_SPEND_FIELDS: {
   key: keyof MonthlySpending;
@@ -54,6 +74,9 @@ function SpendField({
   value: number;
   onValueChange: (value: number) => void;
 }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? String(value);
+
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
@@ -63,11 +86,20 @@ function SpendField({
         </span>
         <Input
           id={id}
-          type="number"
-          min={0}
+          inputMode="decimal"
+          autoComplete="off"
+          placeholder="0"
           className="pl-7"
-          value={value}
-          onChange={(e) => onValueChange(parseFloat(e.target.value) || 0)}
+          value={shown}
+          onFocus={() => {
+            if (value === 0) setDraft("");
+          }}
+          onBlur={() => setDraft(null)}
+          onChange={(e) => {
+            const next = normalizeSpendDraft(e.target.value);
+            setDraft(next);
+            onValueChange(parseSpendDraft(next));
+          }}
         />
       </div>
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}

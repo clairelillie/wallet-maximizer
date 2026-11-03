@@ -120,8 +120,16 @@ export type BenefitValueDriver =
   | "included"
   | "manual";
 
-/** Credits that should count only once across the whole stack. */
-export type BenefitStackGroup = "lounge" | "trustedTraveler" | "eliteStatus";
+/**
+ * Credits that should count only once across the whole stack.
+ * Issuer lounges and Priority Pass are separate: one card can include both,
+ * and a second card does not add the same Priority Pass again.
+ */
+export type BenefitStackGroup =
+  | "lounge"
+  | "priorityPass"
+  | "trustedTraveler"
+  | "eliteStatus";
 
 /**
  * One named credit on a catalog card.

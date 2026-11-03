@@ -32,11 +32,24 @@ export const AMEX_CARDS: CatalogCardDefinition[] = [
         id: "centurion-lounge",
         label: "Centurion Lounge access",
         description:
-          "Centurion Lounge, Priority Pass, and a limited number of Delta Sky Club visits. Set this to what those visits are worth to you.",
+          "Centurion Lounge and a limited number of Delta Sky Club visits. Set this to what those visits are worth to you.",
         maxAnnualValue: 550,
+        // Starting guess plus Priority Pass still totals the old $550 package.
+        estimateBasis: 400,
         valuedBy: "loungeVisits",
         stackRule: "once",
         stackGroup: "lounge",
+      },
+      {
+        id: "plat-priority-pass",
+        label: "Priority Pass Select",
+        description:
+          "Priority Pass Select for the primary cardholder. Set this to what those visits are worth to you.",
+        maxAnnualValue: 469,
+        estimateBasis: 150,
+        valuedBy: "loungeVisits",
+        stackRule: "once",
+        stackGroup: "priorityPass",
       },
       {
         id: "hotel-credit",

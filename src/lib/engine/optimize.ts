@@ -66,6 +66,14 @@ function isUsefulAddVsWallet(
 export const NEAR_TIE_THRESHOLD = 40;
 
 /**
+ * Net dollars per year a new premium card must add when the stack already
+ * has one. Lounge and Priority Pass are counted once, so this bar is the
+ * other benefits and earn, after the extra annual fee. A credit that only
+ * washes out the fee is not enough.
+ */
+export const SECOND_PREMIUM_CARD_MARGIN = 300;
+
+/**
  * Compare stacks on full personalized value:
  * rewards + benefits − fees (same as stackValue).
  * Within NEAR_TIE_THRESHOLD, higher benefits wins as a tie-break.
@@ -138,6 +146,11 @@ export function optimizeStackSize(
 ): OptimizedStackPick | null {
   const keeps = keepCardsFromInput(input.cards);
   const keepNames = new Set(keeps.map((k) => k.name.toLowerCase()));
+  const heldNames = new Set(
+    input.cards
+      .filter((c) => c.name.trim())
+      .map((c) => c.name.toLowerCase())
+  );
 
   // Resolve keep cards from pool (same name) so IDs match pool entries.
   const keepFromPool = pool.filter((c) =>
@@ -156,16 +169,23 @@ export function optimizeStackSize(
     ),
   };
 
-  const loyaltyCoverage = (cards: NormalizedCard[]) =>
-    cards.filter((c) =>
-      reachesPreferredPrograms(c, input.preferences.preferredLoyaltyPrograms)
+  // A transfer partner only matters if this card is assigned spend.
+  // A card that earns $0 has nothing to move to American, Delta, and so on.
+  const loyaltyCoverage = (
+    cards: NormalizedCard[],
+    earningNames: Set<string>
+  ) =>
+    cards.filter(
+      (c) =>
+        earningNames.has(c.name) &&
+        reachesPreferredPrograms(c, input.preferences.preferredLoyaltyPrograms)
     ).length;
 
   const preferredPrograms = activeLoyaltyPrograms(
     input.preferences.preferredLoyaltyPrograms
   );
-  // Role-aware: not every card must hit AA/Delta/etc., but the wallet should
-  // include at least one path when the pool has an eligible card that can.
+  // Role-aware: not every card must hit AA/Delta/etc., but some card that
+  // actually earns points should, when the pool has an eligible earner.
   const loyaltyRequired =
     preferredPrograms.length > 0 &&
     pool.some((c) =>
@@ -212,6 +232,8 @@ export function optimizeStackSize(
       overrides,
       portalOpts
     );
+    if (secondPremiumAddIsTooThin(stack, valuation.stackValue)) return;
+
     const candidate: OptimizedStackPick = {
       cards: stack,
       valuation,
@@ -219,9 +241,15 @@ export function optimizeStackSize(
       stackCards: [],
     };
 
+    const earningNames = new Set(
+      valuation.assignments
+        .filter((row) => row.monthlySpend > 0)
+        .map((row) => row.cardName)
+    );
+
     // When the user named airline/hotel programs, skip stacks with no path
-    // (e.g. Venture X alone when American is selected) if a covering card exists.
-    if (loyaltyRequired && loyaltyCoverage(stack) === 0) {
+    // that actually earns points (a fee card with $0 rewards is not a path).
+    if (loyaltyRequired && loyaltyCoverage(stack, earningNames) === 0) {
       if (
         !fallbackPick.current ||
         isBetterOnRewardsThenBenefits(
@@ -272,10 +300,15 @@ export function optimizeStackSize(
     }
     if (rewardsThenBenefits === false) return;
 
-    // Still tied on rewards + benefits: prefer stacks that cover preferred
-    // airline/hotel programs (role-aware — not every card must match).
-    const lc = loyaltyCoverage(stack);
-    const lb = loyaltyCoverage(bestPick.current.cards);
+    // Still tied on rewards + benefits: prefer stacks that earn points
+    // you can actually transfer (not an extra card that earns nothing).
+    const bestEarningNames = new Set(
+      bestPick.current.valuation.assignments
+        .filter((row) => row.monthlySpend > 0)
+        .map((row) => row.cardName)
+    );
+    const lc = loyaltyCoverage(stack, earningNames);
+    const lb = loyaltyCoverage(bestPick.current.cards, bestEarningNames);
     if (lc !== lb) {
       if (lc > lb) bestPick.current = candidate;
       return;
@@ -305,6 +338,36 @@ export function optimizeStackSize(
       bestPick.current = candidate;
     }
   };
+
+  /**
+   * A newly recommended premium card has to earn its fee from something
+   * other than lounge access and Priority Pass, which already count once.
+   * Cards the user already holds or marked must-keep are left in place.
+   */
+  function secondPremiumAddIsTooThin(
+    stack: NormalizedCard[],
+    stackValue: number
+  ): boolean {
+    const premiums = stack.filter((card) => card.isPremium);
+    if (premiums.length < 2) return false;
+
+    for (const card of premiums) {
+      const key = card.name.toLowerCase();
+      if (keepNames.has(key) || heldNames.has(key)) continue;
+      const others = stack.filter((other) => other.id !== card.id);
+      const without = calculateStackValue(
+        others,
+        input.spending,
+        input.preferences.perkBehaviors,
+        overrides,
+        portalOpts
+      );
+      if (stackValue - without.stackValue < SECOND_PREMIUM_CARD_MARGIN) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   // Always evaluate the current wallet (held cards in pool) when it fits.
   const heldOnly = [
@@ -407,12 +470,16 @@ function toStackCards(
       isKeep,
       input.preferences.rewardTypePreference
     );
-    const loyaltyPath =
-      describeCardLoyaltyPath(
-        card,
-        input.preferences.preferredLoyaltyPrograms ?? [],
-        input.preferences.rewardsStrategies ?? ["no_preference"]
-      ) ?? undefined;
+    const earnsRewards = valuation.assignments.some(
+      (row) => row.cardName === card.name && row.monthlySpend > 0
+    );
+    const loyaltyPath = earnsRewards
+      ? (describeCardLoyaltyPath(
+          card,
+          input.preferences.preferredLoyaltyPrograms ?? [],
+          input.preferences.rewardsStrategies ?? ["no_preference"]
+        ) ?? undefined)
+      : undefined;
     return buildStackCard(
       { ...card, isFromUserPortfolio: isHeld || card.isFromUserPortfolio },
       meta.role,

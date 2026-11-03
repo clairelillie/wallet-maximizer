@@ -96,11 +96,24 @@ export const CHASE_CARDS: CatalogCardDefinition[] = [
         id: "sapphire-lounge",
         label: "Sapphire Lounge access",
         description:
-          "Chase Sapphire Lounge by The Club and Priority Pass Select. Set this to what those visits are worth to you.",
+          "Chase Sapphire Lounge by The Club. Set this to what those visits are worth to you.",
         maxAnnualValue: 400,
+        // Starting guess plus Priority Pass still totals the old $400 package.
+        estimateBasis: 250,
         valuedBy: "loungeVisits",
         stackRule: "once",
         stackGroup: "lounge",
+      },
+      {
+        id: "csr-priority-pass",
+        label: "Priority Pass Select",
+        description:
+          "Priority Pass Select for the primary cardholder. Set this to what those visits are worth to you.",
+        maxAnnualValue: 469,
+        estimateBasis: 150,
+        valuedBy: "loungeVisits",
+        stackRule: "once",
+        stackGroup: "priorityPass",
       },
       {
         id: "csr-travel-credit",

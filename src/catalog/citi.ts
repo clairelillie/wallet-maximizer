@@ -88,7 +88,7 @@ export const CITI_CARDS: CatalogCardDefinition[] = [
         maxAnnualValue: 469,
         valuedBy: "loungeVisits",
         stackRule: "once",
-        stackGroup: "lounge",
+        stackGroup: "priorityPass",
       },
       {
         id: "strata-hotel-benefit",

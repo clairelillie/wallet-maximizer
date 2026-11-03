@@ -282,7 +282,11 @@ function BenefitValueRow({
                 className="w-[7.25rem] pl-6 font-mono tabular-nums"
                 value={shown}
                 onFocus={() => {
-                  if (benefit.stackGroup === "lounge" && !loungeTipDismissed) {
+                  if (
+                    (benefit.stackGroup === "lounge" ||
+                      benefit.stackGroup === "priorityPass") &&
+                    !loungeTipDismissed
+                  ) {
                     onLoungeFocus();
                   }
                 }}
@@ -658,7 +662,9 @@ export function StackWallet({
   const isSelectedSaved = selected ? Boolean(savedByCardId[selected.id]) : false;
 
   const dismissLoungeTip = () => {
-    const loungeBenefit = cardBenefits.find((b) => b.stackGroup === "lounge");
+    const loungeBenefit = cardBenefits.find(
+      (b) => b.stackGroup === "lounge" || b.stackGroup === "priorityPass"
+    );
     if (loungeBenefit) {
       setLoungeTipDismissedIds((prev) => new Set(prev).add(loungeBenefit.id));
     }
@@ -903,7 +909,12 @@ export function StackWallet({
           </DetailSection>
 
           <DetailSection title="How you'll use these points">
-            {selected.loyaltyPath ? (
+            {earnings.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                This card isn&apos;t earning rewards on your spend, so there
+                are no points to transfer.
+              </p>
+            ) : selected.loyaltyPath ? (
               <p className="text-sm leading-relaxed text-foreground">
                 {selected.loyaltyPath}
               </p>

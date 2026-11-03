@@ -1,10 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Calculator, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  CONCRETE_REWARDS_STRATEGIES,
   ISSUER_ECOSYSTEM_OPTIONS,
   LOYALTY_PROGRAM_OPTIONS,
   MAX_CARDS_OPTIONS,
@@ -72,6 +73,19 @@ function ChoiceButton({
   );
 }
 
+/** Both concrete strategies mean every option is open, so select No preference. */
+function collapseFullStrategySelection(
+  strategies: RewardsStrategy[] | undefined
+): RewardsStrategy[] {
+  const list = strategies?.length
+    ? strategies
+    : (["no_preference"] as RewardsStrategy[]);
+  const hasEveryConcrete = CONCRETE_REWARDS_STRATEGIES.every((strategy) =>
+    list.includes(strategy)
+  );
+  return hasEveryConcrete ? ["no_preference"] : list;
+}
+
 function strategiesSummary(strategies: RewardsStrategy[]): string {
   if (isNoPreferenceStrategies(strategies)) {
     return "Any rewards strategy";
@@ -115,7 +129,11 @@ function buildRulesSummary(preferences: UserPreferences): string[] {
     return lines;
   }
 
-  lines.push(strategiesSummary(preferences.rewardsStrategies ?? ["no_preference"]));
+  lines.push(
+    strategiesSummary(
+      collapseFullStrategySelection(preferences.rewardsStrategies)
+    )
+  );
 
   if (programs.length === 0) {
     lines.push("No airline/hotel program preference");
@@ -137,9 +155,20 @@ export function PreferencesStep({
   onCalculate,
 }: PreferencesStepProps) {
   const selectedPrograms = preferences.preferredLoyaltyPrograms ?? [];
-  const selectedStrategies = preferences.rewardsStrategies?.length
-    ? preferences.rewardsStrategies
-    : (["no_preference"] as RewardsStrategy[]);
+  const selectedStrategies = collapseFullStrategySelection(
+    preferences.rewardsStrategies
+  );
+
+  useEffect(() => {
+    const raw = preferences.rewardsStrategies;
+    if (!raw?.length) return;
+    const collapsed = collapseFullStrategySelection(raw);
+    const unchanged =
+      collapsed.length === raw.length &&
+      collapsed.every((strategy, index) => strategy === raw[index]);
+    if (unchanged) return;
+    onChange({ ...preferences, rewardsStrategies: collapsed });
+  }, [preferences, onChange]);
 
   const set = <K extends keyof UserPreferences>(
     key: K,
@@ -220,10 +249,7 @@ export function PreferencesStep({
         : [...withoutNone, strategy]
       : withoutNone.filter((s) => s !== strategy);
 
-    set(
-      "rewardsStrategies",
-      next.length === 0 ? ["no_preference"] : next
-    );
+    set("rewardsStrategies", collapseFullStrategySelection(next));
   };
 
   const toggleProgram = (

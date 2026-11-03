@@ -23,11 +23,24 @@ export const CAPITAL_ONE_CARDS: CatalogCardDefinition[] = [
         id: "capital-one-lounge",
         label: "Capital One Lounge access",
         description:
-          "Capital One Lounge and Landing for the primary cardholder, plus Priority Pass. Set this to what those visits are worth to you.",
+          "Capital One Lounge and Landing for the primary cardholder. Set this to what those visits are worth to you.",
         maxAnnualValue: 400,
+        // Starting guess plus Priority Pass still totals the old $400 package.
+        estimateBasis: 250,
         valuedBy: "loungeVisits",
         stackRule: "once",
         stackGroup: "lounge",
+      },
+      {
+        id: "venture-x-priority-pass",
+        label: "Priority Pass Select",
+        description:
+          "Priority Pass Select for the primary cardholder. Set this to what those visits are worth to you.",
+        maxAnnualValue: 469,
+        estimateBasis: 150,
+        valuedBy: "loungeVisits",
+        stackRule: "once",
+        stackGroup: "priorityPass",
       },
       {
         id: "venture-x-travel-credit",

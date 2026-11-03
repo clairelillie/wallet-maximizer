@@ -21,5 +21,6 @@ export {
   optimizeStackSize,
   buildAlternativeSummaries,
   NEAR_TIE_THRESHOLD,
+  SECOND_PREMIUM_CARD_MARGIN,
   isBetterOnRewardsThenBenefits,
 } from "./optimize";

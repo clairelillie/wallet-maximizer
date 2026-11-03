@@ -224,6 +224,8 @@ export interface UserCreditCard {
   catalogId: string | null;
   /** Issuer selected in the form; empty until chosen. `"other"` = unlisted issuer. */
   ecosystem: PreferredEcosystem | "other" | "";
+  /** Typed bank name when the issuer is not in the list. */
+  customIssuer?: string;
   name: string;
   /** True when the user chose Other and entered details manually. */
   isCustom: boolean;
@@ -290,8 +292,14 @@ export interface StackCard {
   /**
    * How this card's rewards reach the user's preferred airline(s), when set.
    * e.g. "Transfer Amex Membership Rewards to Delta or American Airlines."
+   * Omitted for a user-entered card that does not match the catalog.
    */
   loyaltyPath?: string;
+  /**
+   * User entered this card as Other and it does not match a catalog product
+   * by id or name. Only the rates and fee they typed are known.
+   */
+  isUnmatchedCustomCard?: boolean;
 }
 
 export type StackAction = "KEEP" | "ADD" | "REPLACE" | "SKIP";
@@ -594,4 +602,10 @@ export interface NormalizedCard {
    * Tie-breaker only — never primary ranking.
    */
   softPerkScore: number;
+  /**
+   * User entered this card as Other (or an unlisted product) and it does not
+   * match the catalog by id or name. Benefits, transfer partners, portal
+   * rates, and redemption copy must not be assumed.
+   */
+  isUnmatchedCustomCard?: boolean;
 }

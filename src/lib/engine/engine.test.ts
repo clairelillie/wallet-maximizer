@@ -1514,20 +1514,34 @@ describe("loyalty constraint tradeoff", () => {
       })
     ).toBe(true);
 
+    expect(tradeoff!.excludedCards).toEqual([]);
+    expect(hardFilterAdvisory(input.cards, input.preferences)).toBeNull();
+  });
+
+  it("names only a must-keep card when an American transfer stack is worse", () => {
+    const input = americanTransferInput([
+      userCard("Capital One Venture X", { id: "vx", keepThisCard: true }),
+      userCard("Capital One Savor", { id: "savor", keepThisCard: false }),
+    ]);
+    const result = optimizeStack(input);
+    const heldNames = ["Capital One Savor", "Capital One Venture X"];
+    expect(result.stack.map((card) => card.name).sort()).toEqual(heldNames);
+
     const vx = CARD_CATALOG.find((card) => card.name === "Capital One Venture X")!;
-    const reason = describeCardLoyaltyPath(
-      vx,
-      ["american"],
-      ["transferable"]
-    );
-    expect(tradeoff!.excludedCards).toEqual(
-      expect.arrayContaining([
-        { name: "Capital One Venture X", reason },
-      ])
-    );
+    const reason = describeCardLoyaltyPath(vx, ["american"], ["transferable"]);
+    expect(result.constraintTradeoff!.excludedCards).toEqual([
+      { name: "Capital One Venture X", reason },
+    ]);
+    const advisory = hardFilterAdvisory(input.cards, input.preferences);
+    expect(advisory?.blockedCards.map((card) => card.name)).toEqual([
+      "Capital One Venture X",
+    ]);
     expect(
-      tradeoff!.excludedCards.some((card) => card.name.includes("Savor"))
+      advisory?.blockedCards.some((card) => card.name.includes("Savor"))
     ).toBe(false);
+    expect(advisory?.clauses.some((clause) => clause.kind === "rewards_strategy")).toBe(
+      false
+    );
   });
 
   it("uses the best held subset when the wallet is larger than maxCards", () => {
@@ -1611,21 +1625,60 @@ describe("loyalty constraint tradeoff", () => {
       expect.objectContaining({ kind: "ecosystem", labels: ["Chase"] }),
     ]);
     expect(tradeoff!.programLabels).toEqual([]);
-    expect(tradeoff!.excludedCards.map((card) => card.name).sort()).toEqual(
-      heldNames
-    );
-    expect(
-      tradeoff!.excludedCards.some((card) => card.reason.includes("Capital One"))
-    ).toBe(true);
-    expect(
-      tradeoff!.excludedCards.some((card) => card.reason.includes("Chase"))
-    ).toBe(true);
+    expect(tradeoff!.excludedCards).toEqual([]);
+    expect(hardFilterAdvisory(input.cards, input.preferences)).toBeNull();
     expect(
       tradeoff!.compliantStack.cardNames.every((name) => {
         const catalog = CARD_CATALOG.find((card) => card.name === name);
         return catalog?.ecosystem === "chase";
       })
     ).toBe(true);
+  });
+
+  it("names only the must-keep card when a Chase-only stack is materially worse", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One Venture X", { id: "vx", keepThisCard: true }),
+        userCard("Capital One Savor", { id: "savor", keepThisCard: false }),
+      ],
+      spending: constrainedSpend,
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["chase"],
+        rewardTypePreference: "no_preference",
+        rewardsStrategies: ["no_preference"],
+        preferredLoyaltyPrograms: [],
+        perkBehaviors: {
+          ...quietHabits,
+          travelCreditLikelihood: "yes",
+        },
+      },
+    });
+    const result = optimizeStack(input);
+    expect(result.stack.map((card) => card.name).sort()).toEqual([
+      "Capital One Savor",
+      "Capital One Venture X",
+    ]);
+    const tradeoff = result.constraintTradeoff;
+    expect(tradeoff!.clauses).toEqual([
+      expect.objectContaining({ kind: "ecosystem", labels: ["Chase"] }),
+    ]);
+    expect(tradeoff!.excludedCards.map((card) => card.name)).toEqual([
+      "Capital One Venture X",
+    ]);
+    expect(tradeoff!.excludedCards[0]?.reason).toMatch(/Capital One/);
+    expect(tradeoff!.excludedCards[0]?.reason).toMatch(/Chase/);
+    expect(
+      tradeoff!.clauses.some((clause) => clause.kind === "rewards_strategy")
+    ).toBe(false);
+
+    const advisory = hardFilterAdvisory(input.cards, input.preferences);
+    expect(advisory?.blockedCards.map((card) => card.name)).toEqual([
+      "Capital One Venture X",
+    ]);
+    expect(advisory?.strategyUnlock).toBeNull();
+    expect(advisory?.clauses.map((clause) => clause.kind)).toEqual(["ecosystem"]);
   });
 
   it("keeps held points cards when cash back only is materially worse", () => {
@@ -1661,9 +1714,7 @@ describe("loyalty constraint tradeoff", () => {
         labels: ["Cash back"],
       }),
     ]);
-    expect(tradeoff!.excludedCards.map((card) => card.name).sort()).toEqual(
-      heldNames
-    );
+    expect(tradeoff!.excludedCards).toEqual([]);
     expect(
       tradeoff!.compliantStack.cardNames.every((name) => {
         const catalog = CARD_CATALOG.find((card) => card.name === name);
@@ -1709,11 +1760,93 @@ describe("loyalty constraint tradeoff", () => {
         labels: ["transferable points"],
       }),
     ]);
-    expect(tradeoff!.excludedCards.map((card) => card.name)).toEqual([
-      "Store points card",
-    ]);
+    expect(tradeoff!.excludedCards).toEqual([]);
     expect(
       tradeoff!.compliantStack.cardNames.includes("Store points card")
+    ).toBe(false);
+    expect(hardFilterAdvisory(input.cards, input.preferences)).toBeNull();
+  });
+
+  it("names a must-keep points card that fails a real transferable requirement", () => {
+    const card = {
+      id: "store",
+      catalogId: null,
+      ecosystem: "chase" as const,
+      name: "Store points card",
+      isCustom: true,
+      annualFee: 0,
+      baseMultiplier: 5,
+      multipliers: { dining: 5, grocery: 5, other: 5 },
+      keepThisCard: true,
+    };
+    const preferences = {
+      ...DEFAULT_PREFERENCES,
+      maxCards: 2 as const,
+      preferredEcosystems: ["flexible" as const],
+      rewardTypePreference: "points" as const,
+      rewardsStrategies: ["transferable" as const],
+      preferredLoyaltyPrograms: [],
+      perkBehaviors: quietHabits,
+    };
+    const result = optimizeStack(
+      baseInput({
+        cards: [card],
+        spending: constrainedSpend,
+        preferences,
+      })
+    );
+    expect(result.stack.map((held) => held.name)).toEqual(["Store points card"]);
+    expect(result.constraintTradeoff!.excludedCards.map((held) => held.name)).toEqual([
+      "Store points card",
+    ]);
+    expect(result.constraintTradeoff!.excludedCards[0]?.reason).toMatch(
+      /transferable points/
+    );
+    const advisory = hardFilterAdvisory([card], preferences);
+    expect(advisory?.blockedCards.map((held) => held.name)).toEqual([
+      "Store points card",
+    ]);
+    expect(advisory?.strategyUnlock).toBe("no_preference");
+  });
+
+  it("does not advise portal versus transferable when strategy is no preference", () => {
+    const card = {
+      id: "store",
+      catalogId: null,
+      ecosystem: "chase" as const,
+      name: "Store points card",
+      isCustom: true,
+      annualFee: 0,
+      baseMultiplier: 5,
+      multipliers: { dining: 5, grocery: 5, other: 5 },
+      keepThisCard: true,
+    };
+    const preferences = {
+      ...DEFAULT_PREFERENCES,
+      maxCards: 2 as const,
+      preferredEcosystems: ["flexible" as const],
+      rewardTypePreference: "points" as const,
+      rewardsStrategies: ["no_preference" as const],
+      preferredLoyaltyPrograms: [],
+      perkBehaviors: quietHabits,
+    };
+    expect(hardFilterAdvisory([card], preferences)).toBeNull();
+    const result = optimizeStack(
+      baseInput({
+        cards: [card],
+        spending: constrainedSpend,
+        preferences,
+      })
+    );
+    expect(
+      result.constraintTradeoff?.clauses.some(
+        (clause) => clause.kind === "rewards_strategy"
+      )
+    ).toBeFalsy();
+    expect(
+      result.constraintTradeoff?.excludedCards.some((held) =>
+        /transferable|portal/i.test(held.reason)
+      ) ?? false
     ).toBe(false);
   });
 
@@ -1752,16 +1885,69 @@ describe("loyalty constraint tradeoff", () => {
         loyaltyVia: "transferable",
       }),
     ]);
-    expect(tradeoff!.excludedCards.map((card) => card.name)).toEqual([
-      "Capital One Venture X",
-    ]);
+    expect(tradeoff!.excludedCards).toEqual([]);
     expect(
       tradeoff!.compliantStack.cardNames.some((name) => {
         const catalog = CARD_CATALOG.find((card) => card.name === name);
         return catalog?.transferPartners?.includes("american");
       })
     ).toBe(true);
-    expect(hardFilterAdvisory(input.cards, input.preferences)).not.toBeNull();
+    expect(hardFilterAdvisory(input.cards, input.preferences)).toBeNull();
+  });
+
+  it("still advises a must-keep card with no path to a named program when strategy is no preference", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One Venture X", { id: "vx", keepThisCard: true }),
+        userCard("Capital One Savor", { id: "savor", keepThisCard: false }),
+      ],
+      spending: constrainedSpend,
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "no_preference",
+        preferredLoyaltyPrograms: ["american"],
+        rewardsStrategies: ["no_preference"],
+        perkBehaviors: {
+          ...quietHabits,
+          travelCreditLikelihood: "yes",
+        },
+      },
+    });
+    const result = optimizeStack(input);
+    expect(result.stack.map((card) => card.name).sort()).toEqual([
+      "Capital One Savor",
+      "Capital One Venture X",
+    ]);
+    const tradeoff = result.constraintTradeoff;
+    expect(tradeoff!.clauses).toEqual([
+      expect.objectContaining({
+        kind: "loyalty",
+        labels: ["American Airlines"],
+      }),
+    ]);
+    expect(
+      tradeoff!.clauses.some((clause) => clause.kind === "rewards_strategy")
+    ).toBe(false);
+    expect(tradeoff!.excludedCards.map((card) => card.name)).toEqual([
+      "Capital One Venture X",
+    ]);
+    expect(tradeoff!.excludedCards[0]?.reason).not.toMatch(
+      /does not match portal redemptions or transferable points/i
+    );
+
+    const advisory = hardFilterAdvisory(input.cards, input.preferences);
+    expect(advisory?.blockedCards.map((card) => card.name)).toEqual([
+      "Capital One Venture X",
+    ]);
+    expect(advisory?.strategyUnlock).toBeNull();
+    expect(advisory?.clauses.some((clause) => clause.kind === "loyalty")).toBe(
+      true
+    );
+    expect(
+      advisory?.clauses.some((clause) => clause.kind === "rewards_strategy")
+    ).toBe(false);
   });
 
   it("keeps the current wallet when a smaller stack is materially behind", () => {
@@ -1844,11 +2030,16 @@ describe("Savor cash back converts with Venture miles", () => {
       rewardTypePreference: "points" as const,
       rewardsStrategies: ["no_preference" as const],
     };
-    const advisory = hardFilterAdvisory(cards, preferences);
-    expect(
-      advisory?.blockedCards.some((card) => card.name.includes("Savor"))
-    ).toBe(true);
-    expect(advisory?.showClearRewardType).toBe(true);
+    expect(hardFilterAdvisory(cards, preferences)).toBeNull();
+
+    const kept = hardFilterAdvisory(
+      [userCard("Capital One Savor", { id: "savor", keepThisCard: true })],
+      preferences
+    );
+    expect(kept?.blockedCards.map((card) => card.name)).toEqual([
+      "Capital One Savor",
+    ]);
+    expect(kept?.showClearRewardType).toBe(true);
   });
 
   it("treats held Savor as points once Venture X is in the wallet", () => {

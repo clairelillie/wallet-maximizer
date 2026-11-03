@@ -10,6 +10,8 @@ import {
   blockLines,
   hardFilterClauses,
   heldCardsBlockedByHardFilters,
+  keptCardNames,
+  omitOpenStrategyFailures,
   pricedHardFilterBlocks,
   compliantCandidatePool,
 } from "./hard-filters";
@@ -319,7 +321,10 @@ function constraintTradeoffFor(
 
   const held = heldCards.map((card) => normalizeUserCard(card));
   const blocks = heldCardsBlockedByHardFilters(heldCards, input.preferences);
-  const priced = pricedHardFilterBlocks(blocks, input.preferences, held);
+  const priced = omitOpenStrategyFailures(
+    pricedHardFilterBlocks(blocks, input.preferences, held),
+    input.preferences
+  );
   let clauses = hardFilterClauses(priced, input.preferences);
   let excluded = blockLines(priced);
 
@@ -344,11 +349,12 @@ function constraintTradeoffFor(
     compliant.valuation.rewardsValue + compliant.valuation.benefitsValue
   );
   const loyalty = clauses.find((clause) => clause.kind === "loyalty");
+  const keptNames = keptCardNames(heldCards);
   return {
     clauses,
     cause,
     programLabels: loyalty?.labels ?? [],
-    excludedCards: excluded,
+    excludedCards: excluded.filter((card) => keptNames.has(card.name)),
     compliantStack: {
       cardNames: compliant.cards.map((card) => card.name),
       netAnnualPosition: compliant.valuation.stackValue,
@@ -383,6 +389,7 @@ function inferUnreachedLoyalty(
   const excluded = kept.cards
     .filter(
       (card) =>
+        !card.isUnmatchedCustomCard &&
         card.rewardType !== "cashback" &&
         !reachesPreferredPrograms(card, programs)
     )

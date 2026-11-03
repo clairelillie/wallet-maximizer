@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { BenefitsInputs } from "@/components/inputs/BenefitsInputs";
 import { CreditCardList } from "@/components/inputs/CreditCardList";
+import { InputStepLayout } from "@/components/inputs/InputStepLayout";
 import { PreferencesStep } from "@/components/inputs/PreferencesStep";
 import { SpendingInputs } from "@/components/inputs/SpendingInputs";
 import { Button } from "@/components/ui/button";
@@ -22,12 +23,13 @@ const INPUT_STEPS: Array<{ id: InputStep; label: string }> = [
   { id: "preferences", label: "Preferences" },
 ];
 
+const footerButtonClass =
+  "h-14 min-h-14 rounded-2xl px-6 text-base font-semibold sm:h-16 sm:min-h-16 sm:px-8";
+
 interface InputScreenProps {
   cards: UserCreditCard[];
   spending: MonthlySpending;
   preferences: UserPreferences;
-  isStale: boolean;
-  hasCalculated: boolean;
   onAddCard: () => void;
   onUpdateCard: (id: string, patch: Partial<UserCreditCard>) => void;
   onRemoveCard: (id: string) => void;
@@ -42,8 +44,6 @@ export function InputScreen({
   cards,
   spending,
   preferences,
-  isStale,
-  hasCalculated,
   onAddCard,
   onUpdateCard,
   onRemoveCard,
@@ -54,19 +54,27 @@ export function InputScreen({
   onFocusPreferencesHandled,
 }: InputScreenProps) {
   const [step, setStep] = useState<InputStep>("wallet");
+  const skipScrollToTopRef = useRef(false);
 
   useEffect(() => {
     if (!focusPreferences) return;
+    skipScrollToTopRef.current = true;
     setStep("preferences");
     const timer = window.setTimeout(() => {
       document.getElementById("loyalty-programs")?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
+      skipScrollToTopRef.current = false;
       onFocusPreferencesHandled?.();
     }, 60);
     return () => window.clearTimeout(timer);
   }, [focusPreferences, onFocusPreferencesHandled]);
+
+  useLayoutEffect(() => {
+    if (skipScrollToTopRef.current) return;
+    window.scrollTo(0, 0);
+  }, [step]);
 
   const stepIndex = INPUT_STEPS.findIndex((s) => s.id === step);
 
@@ -86,21 +94,8 @@ export function InputScreen({
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <header className="space-y-3">
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-brand">
-          Spend input
-        </p>
-        <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-          Tell us how you spend — and which benefits you&apos;d use.
-        </h2>
-        <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-          A few focused steps. We&apos;ll size rewards from your spend and only
-          count credits you&apos;d actually use.
-        </p>
-      </header>
-
-      <div className="flex flex-wrap gap-2">
+    <div className="mx-auto max-w-3xl space-y-6">
+      <div className="grid grid-cols-4 gap-3 lg:px-6">
         {INPUT_STEPS.map((item, index) => {
           const active = item.id === step;
           const done = index < stepIndex;
@@ -109,7 +104,7 @@ export function InputScreen({
               key={item.id}
               type="button"
               onClick={() => setStep(item.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`flex min-h-14 flex-col items-start justify-center gap-0.5 rounded-2xl px-2 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-16 sm:px-4 ${
                 active
                   ? "bg-brand text-white shadow-[0_0_18px_oklch(0.67_0.18_295/0.35)]"
                   : done
@@ -117,7 +112,12 @@ export function InputScreen({
                     : "bg-muted text-muted-foreground hover:text-foreground"
               }`}
             >
-              {index + 1}. {item.label}
+              <span className="text-[11px] font-medium uppercase tracking-[0.14em]">
+                Step {index + 1}
+              </span>
+              <span className="text-xs font-semibold leading-tight tracking-tight sm:text-base">
+                {item.label}
+              </span>
             </button>
           );
         })}
@@ -125,38 +125,32 @@ export function InputScreen({
 
       <div className="min-h-[28rem]">
         {step === "wallet" && (
-          <section className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold tracking-tight">
-                Cards you carry today
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {cards.length === 0
-                  ? "Starting from zero is fine — we’ll build a stack for your spend. Add cards if you already have some."
-                  : "Mark keepers so we can compare your current wallet to the recommendation later. You can also clear every card if you don’t have any."}
-              </p>
-            </div>
+          <InputStepLayout
+            heading="What cards do you already have?"
+            instructions={[
+              "Enter in the credit cards you already own.",
+              "If your bank and/or specific card is not listed, please manually enter the details yourself.",
+              "Tell us if one of your current cards is a must-keep, we will only recommend you cards that complement it.",
+            ]}
+          >
             <CreditCardList
               cards={cards}
               onAdd={onAddCard}
               onUpdate={onUpdateCard}
               onRemove={onRemoveCard}
             />
-          </section>
+          </InputStepLayout>
         )}
 
         {step === "spend" && (
-          <section className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold tracking-tight">
-                Monthly spend by category
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Rough averages are enough — this ranks which cards matter most.
-              </p>
-            </div>
+          <InputStepLayout
+            heading="How much do you spend each month?"
+            instructions={[
+              "Enter in monthly spend estimates for each of the categories below.",
+            ]}
+          >
             <SpendingInputs spending={spending} onChange={onSpendingChange} />
-          </section>
+          </InputStepLayout>
         )}
 
         {step === "benefits" && (
@@ -165,7 +159,6 @@ export function InputScreen({
             onChange={(perkBehaviors) =>
               setPreference("perkBehaviors", perkBehaviors)
             }
-            onContinue={() => setStep("preferences")}
           />
         )}
 
@@ -173,28 +166,35 @@ export function InputScreen({
           <PreferencesStep
             cards={cards}
             preferences={preferences}
-            isStale={isStale}
-            hasCalculated={hasCalculated}
             onChange={onPreferencesChange}
-            onCalculate={onCalculate}
           />
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t border-border/50 pt-4">
+      <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-6">
         <Button
           type="button"
           variant="ghost"
+          className={footerButtonClass}
           onClick={goBack}
           disabled={step === "wallet"}
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft className="mr-2 size-5" />
           Back
         </Button>
-        {step !== "preferences" && step !== "benefits" && (
-          <Button type="button" onClick={goNext}>
+        {step === "preferences" ? (
+          <Button
+            type="button"
+            className={footerButtonClass}
+            onClick={onCalculate}
+          >
+            Show me my recommendations
+            <ArrowRight className="ml-2 size-5" />
+          </Button>
+        ) : (
+          <Button type="button" className={footerButtonClass} onClick={goNext}>
             Continue
-            <ArrowRight className="ml-2 h-4 w-4" />
+            <ArrowRight className="ml-2 size-5" />
           </Button>
         )}
       </div>

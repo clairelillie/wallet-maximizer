@@ -811,9 +811,11 @@ function SpendRevealTable({
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-brand">
             Comparison · {meta.index}
           </p>
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            {title}
-          </h2>
+          <div className="rounded-2xl border border-border/70 bg-card px-6 py-7 text-left sm:px-8 sm:py-8">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              {title}
+            </h2>
+          </div>
           <p className="mx-auto max-w-2xl text-sm leading-relaxed text-muted-foreground sm:mx-0 sm:text-base">
             {subtitle}
           </p>

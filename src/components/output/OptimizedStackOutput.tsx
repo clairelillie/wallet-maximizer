@@ -15,7 +15,7 @@ export function OptimizedStackOutput({ stack }: OptimizedStackOutputProps) {
     return (
       <Card className="border-dashed">
         <CardContent className="py-10 text-center text-muted-foreground">
-          No cards matched your criteria. Try adjusting ecosystems or spend inputs.
+          No cards matched your criteria. Try adjusting banks or spend inputs.
         </CardContent>
       </Card>
     );

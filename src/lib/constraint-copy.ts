@@ -93,7 +93,7 @@ export function hardFilterWarningCopy(clauses: HardFilterClause[]): {
   if (clauses.length === 1 && clauses[0]?.kind === "ecosystem") {
     const names = joinDisjunction(clauses[0].labels) || "those issuers";
     return {
-      title: "Advisory: ecosystem mismatch",
+      title: "Advisory: bank mismatch",
       message: `Before calculating — these cards can't meet your rule limiting the stack to ${names}. That can force a worse stack.`,
     };
   }

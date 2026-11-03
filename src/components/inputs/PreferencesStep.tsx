@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { Calculator, Info } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Info } from "lucide-react";
+import { FieldHelp } from "@/components/inputs/FieldHelp";
+import { InputStepLayout, inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   CONCRETE_REWARDS_STRATEGIES,
@@ -29,44 +30,42 @@ import type {
   UserPreferences,
 } from "@/types";
 
-type IssuerEcosystem = Exclude<PreferredEcosystem, "flexible">;
+/** Same header as the wallet card form and the Benefits / Spend section boxes. */
+const boxHeaderClass =
+  "min-w-0 text-lg font-bold tracking-tight break-words sm:text-xl";
 
-type EcosystemChoice =
-  | "no_preference"
-  | IssuerEcosystem
-  | "multiple";
+type IssuerEcosystem = Exclude<PreferredEcosystem, "flexible">;
 
 interface PreferencesStepProps {
   cards: UserCreditCard[];
   preferences: UserPreferences;
-  isStale: boolean;
-  hasCalculated: boolean;
   onChange: (preferences: UserPreferences) => void;
-  onCalculate: () => void;
+}
+
+/** Single-choice rows. Scoped here so Wallet, Spend, and Benefits stay unchanged. */
+const choiceRowClass =
+  "flex h-11 min-h-11 w-full items-center rounded-xl border px-4 text-left text-base font-medium transition-colors";
+
+function choiceRowState(selected: boolean) {
+  return selected
+    ? "border-brand bg-brand-soft text-foreground"
+    : "border-white/10 bg-white/[0.04] text-foreground hover:border-white/20";
 }
 
 function ChoiceButton({
   selected,
   onClick,
   children,
-  className,
 }: {
   selected: boolean;
   onClick: () => void;
   children: ReactNode;
-  className?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        "rounded-xl border px-4 py-3.5 text-left text-sm font-semibold transition-colors",
-        selected
-          ? "border-brand bg-brand-soft text-foreground"
-          : "border-border/70 bg-background hover:border-foreground/20",
-        className
-      )}
+      className={cn(choiceRowClass, choiceRowState(selected))}
     >
       {children}
     </button>
@@ -127,16 +126,14 @@ function buildRulesSummary(preferences: UserPreferences): string[] {
     preferences.preferredEcosystems.includes("flexible") ||
     preferences.preferredEcosystems.length === 0
   ) {
-    lines.push("No ecosystem preference");
+    lines.push("No bank preference");
   } else if (preferences.preferredEcosystems.length === 1) {
     lines.push(
-      `${ecosystemLabel(preferences.preferredEcosystems[0])} ecosystem`
+      `${ecosystemLabel(preferences.preferredEcosystems[0])} bank`
     );
   } else {
     lines.push(
-      `Multiple ecosystems (${preferences.preferredEcosystems
-        .map((e) => ecosystemLabel(e))
-        .join(", ")})`
+      preferences.preferredEcosystems.map((e) => ecosystemLabel(e)).join(", ")
     );
   }
 
@@ -160,10 +157,7 @@ function buildRulesSummary(preferences: UserPreferences): string[] {
 export function PreferencesStep({
   cards,
   preferences,
-  isStale,
-  hasCalculated,
   onChange,
-  onCalculate,
 }: PreferencesStepProps) {
   const selectedPrograms = preferences.preferredLoyaltyPrograms ?? [];
   const selectedStrategies = displayedStrategies(preferences.rewardsStrategies);
@@ -189,16 +183,7 @@ export function PreferencesStep({
     preferences.preferredEcosystems.length === 0 ||
     preferences.preferredEcosystems.includes("flexible");
 
-  const ecosystemChoice: EcosystemChoice = (() => {
-    if (isFlexible) return "no_preference";
-    const issuers = preferences.preferredEcosystems.filter(
-      (e): e is IssuerEcosystem => e !== "flexible"
-    );
-    if (issuers.length === 1) return issuers[0];
-    return "multiple";
-  })();
-
-  const multipleIssuers = preferences.preferredEcosystems.filter(
+  const selectedIssuers = preferences.preferredEcosystems.filter(
     (e): e is IssuerEcosystem => e !== "flexible"
   );
 
@@ -211,25 +196,16 @@ export function PreferencesStep({
     .filter((e) => e !== "flexible")
     .map((e) => ecosystemLabel(e));
 
-  const setEcosystemChoice = (choice: EcosystemChoice) => {
-    if (choice === "no_preference") {
+  const toggleNoBankPreference = (checked: boolean) => {
+    if (checked || selectedIssuers.length === 0) {
       set("preferredEcosystems", ["flexible"]);
-      return;
     }
-    if (choice === "multiple") {
-      set(
-        "preferredEcosystems",
-        multipleIssuers.length >= 2 ? multipleIssuers : ["chase", "amex"]
-      );
-      return;
-    }
-    set("preferredEcosystems", [choice]);
   };
 
-  const toggleMultipleIssuer = (value: IssuerEcosystem, checked: boolean) => {
-    const next: PreferredEcosystem[] = checked
-      ? [...multipleIssuers.filter((e) => e !== value), value]
-      : multipleIssuers.filter((e) => e !== value);
+  const toggleIssuer = (value: IssuerEcosystem, checked: boolean) => {
+    const next = checked
+      ? [...selectedIssuers.filter((issuer) => issuer !== value), value]
+      : selectedIssuers.filter((issuer) => issuer !== value);
     set("preferredEcosystems", next.length === 0 ? ["flexible"] : next);
   };
 
@@ -288,61 +264,28 @@ export function PreferencesStep({
   const rules = buildRulesSummary(preferences);
 
   return (
-    <section className="space-y-10">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-          My Preferences
-        </p>
-        <h3 className="mt-2 text-lg font-semibold tracking-tight">
-          Set your rules
-        </h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Tell us what you&apos;re willing to consider. We&apos;ll only
-          recommend a wallet that fits your preferences.
-        </p>
-      </div>
-
+    <InputStepLayout
+      heading="What are your hard constraints?"
+      instructions={[
+        "Answer the below questions to help define what cards we should recommend based on your hard constraints",
+      ]}
+    >
+      <div className="space-y-5">
+      <div className={inputStepFormGroupClassName}>
+        <h3 className={boxHeaderClass}>Logistics</h3>
+        <div className="mt-5 space-y-5">
       <div className="space-y-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            1. Wallet
-          </p>
           <h4 className="mt-2 text-base font-semibold">
             How many cards are you willing to manage?
           </h4>
         </div>
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid gap-2">
           {MAX_CARDS_OPTIONS.map((option) => (
             <ChoiceButton
               key={option.value}
               selected={preferences.maxCards === option.value}
               onClick={() => set("maxCards", option.value as MaxCards)}
-              className="text-center"
-            >
-              {option.label}
-            </ChoiceButton>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          We&apos;ll never recommend more cards than this.
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            2. Rewards
-          </p>
-          <h4 className="mt-2 text-base font-semibold">
-            How do you want to earn rewards?
-          </h4>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-3">
-          {REWARD_TYPE_OPTIONS.map((option) => (
-            <ChoiceButton
-              key={option.value}
-              selected={preferences.rewardTypePreference === option.value}
-              onClick={() => setRewardType(option.value)}
             >
               {option.label}
             </ChoiceButton>
@@ -352,59 +295,53 @@ export function PreferencesStep({
 
       <div className="space-y-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            3. Rewards Ecosystem
-          </p>
           <h4 className="mt-2 text-base font-semibold">
-            What rewards ecosystem(s) are you willing to use?
+            What rewards bank(s) are you willing to use?
           </h4>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {(
-            [
-              { value: "no_preference" as const, label: "No preference" },
-              ...ISSUER_ECOSYSTEM_OPTIONS.map((o) => ({
-                value: o.value as EcosystemChoice,
-                label: o.label,
-              })),
-              { value: "multiple" as const, label: "Multiple ecosystems" },
-            ] as Array<{ value: EcosystemChoice; label: string }>
-          ).map((option) => (
-            <ChoiceButton
-              key={option.value}
-              selected={ecosystemChoice === option.value}
-              onClick={() => setEcosystemChoice(option.value)}
-            >
-              {option.label}
-            </ChoiceButton>
-          ))}
+        <div className="grid gap-2">
+          <label
+            htmlFor="eco-no-preference"
+            className={cn(
+              choiceRowClass,
+              "cursor-pointer gap-3",
+              choiceRowState(isFlexible)
+            )}
+          >
+            <Checkbox
+              id="eco-no-preference"
+              checked={isFlexible}
+              onCheckedChange={(state) =>
+                toggleNoBankPreference(state === true)
+              }
+            />
+            <span className="text-base font-medium">No preference</span>
+          </label>
+          {ISSUER_ECOSYSTEM_OPTIONS.map((option) => {
+            const checked =
+              !isFlexible && selectedIssuers.includes(option.value);
+            return (
+              <label
+                key={option.value}
+                htmlFor={`eco-${option.value}`}
+                className={cn(
+                  choiceRowClass,
+                  "cursor-pointer gap-3",
+                  choiceRowState(checked)
+                )}
+              >
+                <Checkbox
+                  id={`eco-${option.value}`}
+                  checked={checked}
+                  onCheckedChange={(state) =>
+                    toggleIssuer(option.value, state === true)
+                  }
+                />
+                <span className="text-base font-medium">{option.label}</span>
+              </label>
+            );
+          })}
         </div>
-        {ecosystemChoice === "multiple" && (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {ISSUER_ECOSYSTEM_OPTIONS.map((option) => {
-              const checked = multipleIssuers.includes(option.value);
-              return (
-                <label
-                  key={option.value}
-                  htmlFor={`eco-multi-${option.value}`}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/60 bg-muted/15 px-3 py-2.5"
-                >
-                  <Checkbox
-                    id={`eco-multi-${option.value}`}
-                    checked={checked}
-                    onCheckedChange={(state) =>
-                      toggleMultipleIssuer(option.value, state === true)
-                    }
-                  />
-                  <span className="text-sm font-medium">{option.label}</span>
-                </label>
-              );
-            })}
-          </div>
-        )}
-        <p className="text-xs text-muted-foreground">
-          We&apos;ll only recommend cards within the ecosystems you select.
-        </p>
         {mismatchedKeptCards.length > 0 &&
           isEcosystemFilterActive(preferences.preferredEcosystems) && (
             <div className="flex gap-3 rounded-lg border border-amber-200/80 bg-amber-50/90 px-3 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
@@ -418,20 +355,40 @@ export function PreferencesStep({
             </div>
           )}
       </div>
+        </div>
+      </div>
+
+      <div className={inputStepFormGroupClassName}>
+        <h3 className={boxHeaderClass}>Rewards</h3>
+        <div className="mt-5 space-y-5">
+      <div className="space-y-4">
+        <div>
+          <h4 className="mt-2 text-base font-semibold">
+            How do you want to earn rewards?
+          </h4>
+        </div>
+        <div className="grid gap-2">
+          {REWARD_TYPE_OPTIONS.map((option) => (
+            <ChoiceButton
+              key={option.value}
+              selected={preferences.rewardTypePreference === option.value}
+              onClick={() => setRewardType(option.value)}
+            >
+              {option.label}
+            </ChoiceButton>
+          ))}
+        </div>
+      </div>
 
       {showPointsSections && (
         <>
           <div className="space-y-4">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                4. Rewards Strategies
-              </p>
               <h4 className="mt-2 text-base font-semibold">
                 Which rewards strategies are you willing to use?
               </h4>
               <p className="mt-1 text-sm text-muted-foreground">
-                Select all that apply. Different cards in your wallet can use
-                different strategies.
+                Select all that apply.
               </p>
             </div>
             <div className="grid gap-2">
@@ -442,10 +399,9 @@ export function PreferencesStep({
                     key={option.value}
                     htmlFor={`strategy-${option.value}`}
                     className={cn(
-                      "flex cursor-pointer gap-3 rounded-xl border px-4 py-3.5 transition-colors",
-                      checked
-                        ? "border-brand bg-brand-soft"
-                        : "border-border/70 bg-background hover:border-foreground/20"
+                      choiceRowClass,
+                      "cursor-pointer gap-3",
+                      choiceRowState(checked)
                     )}
                   >
                     <Checkbox
@@ -454,14 +410,20 @@ export function PreferencesStep({
                       onCheckedChange={(state) =>
                         toggleStrategy(option.value, state === true)
                       }
-                      className="mt-0.5"
                     />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold">
-                        {option.label}
-                      </span>
-                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                        {option.description}
+                    <span className="min-w-0 leading-snug">
+                      {option.label}
+                      <span
+                        className="ml-1.5 inline-flex align-middle"
+                        onClick={(event) => event.preventDefault()}
+                      >
+                        <FieldHelp
+                          id={`strategy-${option.value}-help`}
+                          title={option.label}
+                          icon="exclamation"
+                        >
+                          {`Different cards in your wallet can use different strategies. ${option.description}`}
+                        </FieldHelp>
                       </span>
                     </span>
                   </label>
@@ -472,25 +434,37 @@ export function PreferencesStep({
 
           <div id="loyalty-programs" className="space-y-4">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                5. Airline & Hotel Programs
-              </p>
-              <h4 className="mt-2 text-base font-semibold">
+              <h4 className="mt-2 text-base font-semibold leading-snug">
                 Are there any airline or hotel programs you specifically want
                 to earn rewards with?
+                <span className="ml-1.5 inline-flex align-middle">
+                  <FieldHelp
+                    id="loyalty-programs-help"
+                    title="Airline and hotel programs"
+                    icon="exclamation"
+                  >
+                    {
+                      "Transferable points can be converted to that program. Not every card in your recommended stack needs to support these programs — we assign complementary roles across the wallet."
+                    }
+                  </FieldHelp>
+                </span>
               </h4>
               <p className="mt-1 text-sm text-muted-foreground">
                 Select all that apply.
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2">
               {LOYALTY_PROGRAM_OPTIONS.map((option) => {
                 const checked = selectedPrograms.includes(option.value);
                 return (
                   <label
                     key={option.value}
                     htmlFor={`loyalty-${option.value}`}
-                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/60 bg-muted/15 px-3 py-2.5"
+                    className={cn(
+                      choiceRowClass,
+                      "cursor-pointer gap-3",
+                      choiceRowState(checked)
+                    )}
                   >
                     <Checkbox
                       id={`loyalty-${option.value}`}
@@ -499,19 +473,16 @@ export function PreferencesStep({
                         toggleProgram(option.value, state === true)
                       }
                     />
-                    <span className="text-sm font-medium">{option.label}</span>
+                    <span className="min-w-0 leading-snug">{option.label}</span>
                   </label>
                 );
               })}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Transferable points can be converted to that program. Not every
-              card in your recommended stack needs to support these programs —
-              we assign complementary roles across the wallet.
-            </p>
           </div>
         </>
       )}
+        </div>
+      </div>
 
       <div className="space-y-3 rounded-xl border border-border/70 bg-muted/20 px-5 py-6">
         <h4 className="text-base font-semibold tracking-tight">Your Rules</h4>
@@ -521,23 +492,7 @@ export function PreferencesStep({
           ))}
         </ul>
       </div>
-
-      <div className="rounded-xl border border-border/80 bg-brand-soft/70 p-5 dark:bg-brand-soft/30">
-        <Button
-          type="button"
-          size="lg"
-          className="w-full sm:w-auto"
-          onClick={onCalculate}
-        >
-          <Calculator className="mr-2 h-4 w-4" />
-          {hasCalculated ? "Recalculate My Stack" : "Calculate My Stack"}
-        </Button>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {hasCalculated && isStale
-            ? "Inputs changed — recalculate to refresh the recommendation."
-            : "We'll find the highest-value wallet that follows all of your rules."}
-        </p>
       </div>
-    </section>
+    </InputStepLayout>
   );
 }

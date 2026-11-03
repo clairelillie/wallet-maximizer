@@ -88,7 +88,8 @@ export function buildStackCard(
     isNewRecommendation: action === "ADD",
     action,
     incrementalValue,
-    ...(loyaltyPath ? { loyaltyPath } : {}),
+    ...(loyaltyPath && !card.isUnmatchedCustomCard ? { loyaltyPath } : {}),
+    ...(card.isUnmatchedCustomCard ? { isUnmatchedCustomCard: true } : {}),
   };
 }
 
@@ -161,7 +162,9 @@ export function explainCard(
           )
         : undefined;
     const primary = gapLine ?? ranked[0];
-    const earnPhrase = formatEarnInRationale(primary, rewardTypePreference);
+    const earnPhrase = card.isUnmatchedCustomCard
+      ? `~$${primary.annualReward.toLocaleString()}/year in rewards`
+      : formatEarnInRationale(primary, rewardTypePreference);
     const spendNote = `You spend about $${primary.annualSpend.toLocaleString()}/year on ${primary.label.toLowerCase()}, and this card earns ${primary.multiplier}x there (${earnPhrase}).`;
 
     let complement: string;

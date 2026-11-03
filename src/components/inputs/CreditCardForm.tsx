@@ -1,11 +1,18 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { useMemo } from "react";
+import { Trash2 } from "lucide-react";
+import { FieldHelp } from "@/components/inputs/FieldHelp";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   catalogCardsForEcosystem,
@@ -16,7 +23,6 @@ import {
   CARD_ENTRY_ISSUER_OPTIONS,
   OTHER_CARD_VALUE,
 } from "@/lib/constants";
-import { cn } from "@/lib/utils";
 import type { PreferredEcosystem, UserCreditCard } from "@/types";
 
 interface CreditCardFormProps {
@@ -26,6 +32,10 @@ interface CreditCardFormProps {
   onRemove: () => void;
   canRemove: boolean;
 }
+
+const fieldLabelClass = "text-base font-medium";
+const fieldInputClass =
+  "h-11 min-h-11 rounded-xl px-3 text-base font-medium md:text-base";
 
 function MultiplierField({
   label,
@@ -37,8 +47,8 @@ function MultiplierField({
   onChange: (v: number | undefined) => void;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+    <div className="space-y-2">
+      <Label className={fieldLabelClass}>{label}</Label>
       <Input
         type="number"
         min={0}
@@ -49,7 +59,7 @@ function MultiplierField({
           const raw = e.target.value;
           onChange(raw === "" ? undefined : parseFloat(raw));
         }}
-        className="h-9"
+        className={fieldInputClass}
       />
     </div>
   );
@@ -63,38 +73,44 @@ const blankCardFields = {
   multipliers: {} as UserCreditCard["multipliers"],
 };
 
-const selectClassName = cn(
-  "h-8 w-full appearance-none rounded-lg border border-white/10 bg-white/[0.04] py-1 pr-8 pl-2.5 text-base leading-normal outline-none md:text-sm",
-  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-  "disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
-);
+const selectTriggerClassName =
+  "h-11 min-h-11 w-full rounded-xl border-white/10 bg-white/[0.04] px-3 font-sans text-base font-medium leading-normal data-[size=default]:h-11 data-[size=default]:min-h-11 md:text-base dark:bg-input/30";
 
 function CardSelect({
   id,
   value,
   disabled,
+  placeholder,
+  items,
   onChange,
-  children,
 }: {
   id: string;
   value: string;
   disabled?: boolean;
+  placeholder: string;
+  items: Array<{ value: string; label: string }>;
   onChange: (value: string) => void;
-  children: ReactNode;
 }) {
   return (
-    <div className="relative">
-      <select
-        id={id}
-        className={selectClassName}
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        {children}
-      </select>
-      <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-    </div>
+    <Select
+      value={value || null}
+      disabled={disabled}
+      items={items}
+      onValueChange={(next) => {
+        if (next) onChange(next);
+      }}
+    >
+      <SelectTrigger id={id} className={selectTriggerClassName}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {items.map((item) => (
+          <SelectItem key={item.value} value={item.value}>
+            {item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -144,44 +160,48 @@ export function CreditCardForm({
   };
 
   return (
-    <Card className="border-border/80 shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-        <CardTitle className="text-base font-medium">
+    <div className="rounded-2xl border border-border/70 bg-card px-5 py-6 sm:px-6 sm:py-7">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="min-w-0 text-lg font-bold tracking-tight break-words sm:text-xl">
           Card {index + 1}
           {card.name ? ` — ${card.name}` : ""}
-        </CardTitle>
+        </h3>
         {canRemove && (
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="icon"
+            className="size-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
             onClick={onRemove}
             aria-label="Remove card"
           >
-            <Trash2 className="h-4 w-4 text-muted-foreground" />
+            <Trash2 className="size-4" />
           </Button>
         )}
-      </CardHeader>
-      <CardContent className="space-y-4">
+      </div>
+
+      <div className="mt-5 space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor={`ecosystem-${card.id}`}>Ecosystem</Label>
+          <div className="space-y-2">
+            <Label htmlFor={`ecosystem-${card.id}`} className={fieldLabelClass}>
+              Bank
+            </Label>
             <CardSelect
               id={`ecosystem-${card.id}`}
               value={ecosystem}
+              placeholder="Select issuer"
+              items={CARD_ENTRY_ISSUER_OPTIONS.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
               onChange={handleEcosystemChange}
-            >
-              <option value="">Select issuer</option>
-              {CARD_ENTRY_ISSUER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </CardSelect>
+            />
           </div>
           {!isOtherIssuer && (
-            <div className="space-y-1.5">
-              <Label htmlFor={`card-${card.id}`}>Card</Label>
+            <div className="space-y-2">
+              <Label htmlFor={`card-${card.id}`} className={fieldLabelClass}>
+                Card
+              </Label>
               <CardSelect
                 id={`card-${card.id}`}
                 value={
@@ -190,35 +210,40 @@ export function CreditCardForm({
                     : card.catalogId || findCatalogCard(card.name)?.id || ""
                 }
                 disabled={!ecosystem}
+                placeholder={
+                  ecosystem ? "Select card" : "Choose a bank first"
+                }
+                items={[
+                  ...cardsForIssuer.map((catalogCard) => ({
+                    value: catalogCard.id,
+                    label: catalogCard.name,
+                  })),
+                  { value: OTHER_CARD_VALUE, label: "Other" },
+                ]}
                 onChange={handleCardChange}
-              >
-                <option value="">
-                  {ecosystem ? "Select card" : "Choose an ecosystem first"}
-                </option>
-                {cardsForIssuer.map((catalogCard) => (
-                  <option key={catalogCard.id} value={catalogCard.id}>
-                    {catalogCard.name}
-                  </option>
-                ))}
-                <option value={OTHER_CARD_VALUE}>Other</option>
-              </CardSelect>
+              />
             </div>
           )}
           {isCustom && (
             <div
-              className={`space-y-1.5 ${isOtherIssuer ? "sm:col-span-1" : "sm:col-span-2"}`}
+              className={`space-y-2 ${isOtherIssuer ? "sm:col-span-1" : "sm:col-span-2"}`}
             >
-              <Label htmlFor={`name-${card.id}`}>Card name</Label>
+              <Label htmlFor={`name-${card.id}`} className={fieldLabelClass}>
+                Card name
+              </Label>
               <Input
                 id={`name-${card.id}`}
                 placeholder="e.g. Discover it Cash Back"
                 value={card.name}
                 onChange={(e) => onUpdate({ name: e.target.value })}
+                className={fieldInputClass}
               />
             </div>
           )}
-          <div className="space-y-1.5">
-            <Label htmlFor={`fee-${card.id}`}>Annual fee ($)</Label>
+          <div className="space-y-2">
+            <Label htmlFor={`fee-${card.id}`} className={fieldLabelClass}>
+              Annual fee ($)
+            </Label>
             <Input
               id={`fee-${card.id}`}
               type="number"
@@ -227,10 +252,27 @@ export function CreditCardForm({
               onChange={(e) =>
                 onUpdate({ annualFee: parseFloat(e.target.value) || 0 })
               }
+              className={fieldInputClass}
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={`base-${card.id}`}>Base multiplier (x)</Label>
+          <div className="space-y-2">
+            <div className="text-base font-medium">
+              <Label
+                htmlFor={`base-${card.id}`}
+                className={`${fieldLabelClass} inline`}
+              >
+                Base rate
+              </Label>
+              <span className="ml-1.5 inline-flex align-middle">
+                <FieldHelp
+                  id={`base-multiplier-${card.id}`}
+                  title="What is a base rate?"
+                >
+                  Your rewards earning rate on general, everyday purchases that do
+                  not fall into a special category.
+                </FieldHelp>
+              </span>
+            </div>
             <Input
               id={`base-${card.id}`}
               type="number"
@@ -240,18 +282,19 @@ export function CreditCardForm({
               onChange={(e) =>
                 onUpdate({ baseMultiplier: parseFloat(e.target.value) || 1 })
               }
+              className={fieldInputClass}
             />
           </div>
         </div>
 
-        <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">
+        <div className="space-y-3 border-t border-border/50 pt-5">
+          <p className="text-base font-medium leading-relaxed text-muted-foreground">
             Category multipliers
             {isCustom
               ? " (enter what this card earns)"
               : " (leave blank to use base)"}
           </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <MultiplierField
               label="Dining"
               value={card.multipliers.dining}
@@ -305,22 +348,23 @@ export function CreditCardForm({
           </div>
         </div>
 
-        <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
-          <div>
-            <Label htmlFor={`keep-${card.id}`} className="font-medium">
-              Keep this card?
+        <div className="flex items-center justify-between gap-4 border-t border-border/50 pt-5">
+          <div className="min-w-0">
+            <Label htmlFor={`keep-${card.id}`} className={fieldLabelClass}>
+              Must-keep?
             </Label>
-            <p className="text-xs text-muted-foreground">
-              Keep cards are always included in your optimized stack
+            <p className="mt-1 text-base font-medium leading-relaxed text-muted-foreground">
+              We&apos;ll only recommend cards that complement this one.
             </p>
           </div>
           <Switch
             id={`keep-${card.id}`}
+            className="shrink-0"
             checked={card.keepThisCard}
             onCheckedChange={(keepThisCard) => onUpdate({ keepThisCard })}
           />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

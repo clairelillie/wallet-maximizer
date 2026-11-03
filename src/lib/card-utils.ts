@@ -38,12 +38,20 @@ export function resolveTravelChannelRates(
 export function getEffectiveMultiplier(
   card: Pick<
     NormalizedCard,
-    "baseMultiplier" | "multipliers" | "travelMultipliers"
+    | "baseMultiplier"
+    | "multipliers"
+    | "travelMultipliers"
+    | "isUnmatchedCustomCard"
   >,
   category: SpendCategory,
   options?: { willingToUseTravelPortal?: boolean }
 ): number {
-  if (isTravelSpendCategory(category) && card.travelMultipliers) {
+  // A custom card has no catalog portal/direct split. Use only rates the user typed.
+  if (
+    !card.isUnmatchedCustomCard &&
+    isTravelSpendCategory(category) &&
+    card.travelMultipliers
+  ) {
     const rates = resolveTravelChannelRates(card.travelMultipliers, category);
     if (rates) {
       return options?.willingToUseTravelPortal === false
@@ -148,10 +156,43 @@ export function fieldsFromCatalogCard(
   };
 }
 
+/**
+ * True when the user added a card as Other and it does not resolve to a
+ * catalog product. A catalog name still matches even if the issuer is Other.
+ */
+export function isUnmatchedCustomUserCard(card: UserCreditCard): boolean {
+  const catalogItem =
+    findCatalogCardById(card.catalogId) ?? findCatalogCardByName(card.name);
+  if (catalogItem) return false;
+  return card.isCustom || card.ecosystem === "other";
+}
+
 export function normalizeUserCard(card: UserCreditCard): NormalizedCard {
   const name = card.name || "Unnamed Card";
   const catalogItem =
     findCatalogCardById(card.catalogId) ?? findCatalogCardByName(name);
+  const isUnmatchedCustomCard = isUnmatchedCustomUserCard(card);
+
+  if (isUnmatchedCustomCard) {
+    const ecosystem =
+      card.ecosystem && card.ecosystem !== "other" ? card.ecosystem : "unknown";
+    return {
+      id: card.id,
+      name,
+      annualFee: card.annualFee,
+      baseMultiplier: card.baseMultiplier || 1,
+      multipliers: card.multipliers,
+      ecosystem,
+      rewardType: resolveCardRewardType(name),
+      isPremium: false,
+      hasLoungeAccess: false,
+      isFromUserPortfolio: true,
+      quantifiableCreditValue: 0,
+      softPerkScore: 0,
+      isUnmatchedCustomCard: true,
+    };
+  }
+
   const hasLoungeAccess =
     catalogItem?.hasLoungeAccess ?? card.annualFee >= 500;
 
@@ -176,6 +217,7 @@ export function normalizeUserCard(card: UserCreditCard): NormalizedCard {
     isFromUserPortfolio: true,
     quantifiableCreditValue: 0,
     softPerkScore: 0,
+    isUnmatchedCustomCard: false,
   };
 }
 
@@ -201,6 +243,7 @@ export function catalogToNormalized(
     isFromUserPortfolio: false,
     quantifiableCreditValue: 0,
     softPerkScore: 0,
+    isUnmatchedCustomCard: false,
   };
 }
 

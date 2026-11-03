@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, type ReactNode } from "react";
+import { FieldHelp } from "@/components/inputs/FieldHelp";
+import { inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { MonthlySpending } from "@/types";
@@ -25,12 +26,12 @@ function parseSpendDraft(draft: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-const TOP_SPEND_FIELDS: {
+const FOOD_SPEND_FIELDS: {
   key: keyof MonthlySpending;
   label: string;
 }[] = [
-  { key: "dining", label: "Monthly dining" },
-  { key: "grocery", label: "Monthly groceries" },
+  { key: "dining", label: "Dining" },
+  { key: "grocery", label: "Groceries" },
 ];
 
 const TRAVEL_SPEND_FIELDS: {
@@ -42,18 +43,13 @@ const TRAVEL_SPEND_FIELDS: {
   { key: "rentalCars", label: "Rental cars" },
 ];
 
-const BOTTOM_SPEND_FIELDS: {
+const OTHER_SPEND_FIELDS: {
   key: keyof MonthlySpending;
   label: string;
-  hint?: string;
 }[] = [
-  { key: "gas", label: "Monthly gas" },
-  { key: "onlineShopping", label: "Monthly online shopping" },
-  {
-    key: "other",
-    label: "Monthly everything else",
-    hint: "Non-category spend — utilities, subscriptions, misc.",
-  },
+  { key: "gas", label: "Gas" },
+  { key: "onlineShopping", label: "Online shopping" },
+  { key: "other", label: "Everything else" },
 ];
 
 interface SpendingInputsProps {
@@ -61,16 +57,22 @@ interface SpendingInputsProps {
   onChange: (spending: MonthlySpending) => void;
 }
 
+const fieldLabelClass = "text-base font-medium";
+const fieldInputClass =
+  "h-11 min-h-11 rounded-xl px-3 pl-7 text-base font-medium md:text-base";
+const boxHeaderClass =
+  "min-w-0 text-lg font-bold tracking-tight break-words sm:text-xl";
+
 function SpendField({
   id,
   label,
-  hint,
+  help,
   value,
   onValueChange,
 }: {
   id: string;
   label: string;
-  hint?: string;
+  help?: ReactNode;
   value: number;
   onValueChange: (value: number) => void;
 }) {
@@ -78,10 +80,17 @@ function SpendField({
   const shown = draft ?? String(value);
 
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+    <div className="space-y-2">
+      <div className="text-base font-medium">
+        <Label htmlFor={id} className={`${fieldLabelClass} inline`}>
+          {label}
+        </Label>
+        {help ? (
+          <span className="ml-1.5 inline-flex align-middle">{help}</span>
+        ) : null}
+      </div>
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+        <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base font-medium text-muted-foreground">
           $
         </span>
         <Input
@@ -89,7 +98,7 @@ function SpendField({
           inputMode="decimal"
           autoComplete="off"
           placeholder="0"
-          className="pl-7"
+          className={fieldInputClass}
           value={shown}
           onFocus={() => {
             if (value === 0) setDraft("");
@@ -102,82 +111,68 @@ function SpendField({
           }}
         />
       </div>
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
 
+function renderSpendFields(
+  fields: ReadonlyArray<{
+    key: keyof MonthlySpending;
+    label: string;
+  }>,
+  spending: MonthlySpending,
+  onChange: (spending: MonthlySpending) => void
+) {
+  return fields.map(({ key, label }) => (
+    <SpendField
+      key={key}
+      id={`spend-${key}`}
+      label={label}
+      help={
+        key === "other" ? (
+          <FieldHelp
+            id="spend-other"
+            title="Everything else"
+            icon="exclamation"
+          >
+            Non-category spend — utilities, subscriptions, misc.
+          </FieldHelp>
+        ) : undefined
+      }
+      value={spending[key]}
+      onValueChange={(value) =>
+        onChange({
+          ...spending,
+          [key]: value,
+        })
+      }
+    />
+  ));
+}
+
 export function SpendingInputs({ spending, onChange }: SpendingInputsProps) {
   return (
-    <Card className="border-border/80 shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-base">Monthly spending</CardTitle>
-        <CardDescription>
-          Rough averages are fine — we use these to rank categories and size rewards.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {TOP_SPEND_FIELDS.map(({ key, label }) => (
-            <SpendField
-              key={key}
-              id={`spend-${key}`}
-              label={label}
-              value={spending[key]}
-              onValueChange={(value) =>
-                onChange({
-                  ...spending,
-                  [key]: value,
-                })
-              }
-            />
-          ))}
+    <div className="space-y-5">
+      <div className={inputStepFormGroupClassName}>
+        <h3 className={boxHeaderClass}>Food</h3>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          {renderSpendFields(FOOD_SPEND_FIELDS, spending, onChange)}
         </div>
+      </div>
 
-        <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
-          <div>
-            <p className="text-sm font-medium">Travel</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Split by type. Portal vs direct earn rates are chosen later in
-              Preferences.
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {TRAVEL_SPEND_FIELDS.map(({ key, label }) => (
-              <SpendField
-                key={key}
-                id={`spend-${key}`}
-                label={label}
-                value={spending[key]}
-                onValueChange={(value) =>
-                  onChange({
-                    ...spending,
-                    [key]: value,
-                  })
-                }
-              />
-            ))}
-          </div>
+      <div className={inputStepFormGroupClassName}>
+        <h3 className={boxHeaderClass}>Travel</h3>
+        <div className="mt-5 grid gap-4 sm:grid-cols-3">
+          {renderSpendFields(TRAVEL_SPEND_FIELDS, spending, onChange)}
         </div>
+      </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {BOTTOM_SPEND_FIELDS.map(({ key, label, hint }) => (
-            <SpendField
-              key={key}
-              id={`spend-${key}`}
-              label={label}
-              hint={hint}
-              value={spending[key]}
-              onValueChange={(value) =>
-                onChange({
-                  ...spending,
-                  [key]: value,
-                })
-              }
-            />
-          ))}
+      <div className={inputStepFormGroupClassName}>
+        <h3 className={boxHeaderClass}>Other</h3>
+        <div className="mt-5 grid gap-4 sm:grid-cols-3">
+          {renderSpendFields(OTHER_SPEND_FIELDS, spending, onChange)}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

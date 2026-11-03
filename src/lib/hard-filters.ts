@@ -121,14 +121,21 @@ export function heldCardsBlockedByHardFilters(
     const rewardTypeFailed = parts.some((part) => part.kind === "reward_type");
     const cashbackCompanion =
       view.rewardType === "cashback" && rewardPref !== "points";
+    // "No preference" allows both portal and transferable, so neither path
+    // is a failed requirement. Named loyalty programs are still checked.
+    const strategyIsOpen = isNoPreferenceStrategies(strategies);
 
     if (!rewardTypeFailed && !cashbackCompanion && rewardPref !== "cashback") {
-      if (!matchesAllowedRewardsStrategies(view, strategies)) {
+      if (
+        !strategyIsOpen &&
+        !matchesAllowedRewardsStrategies(view, strategies)
+      ) {
         parts.push({
           kind: "rewards_strategy",
           reason: strategyReason(strategies),
         });
       } else if (
+        !view.isUnmatchedCustomCard &&
         !matchesLoyaltyProgramConstraint(view, programs, strategies)
       ) {
         const targets = activeLoyaltyPrograms(programs);
@@ -284,9 +291,12 @@ export function hardFilterClauses(
 function cardWouldClear(
   cards: UserCreditCard[],
   preferences: UserPreferences,
-  next: UserPreferences
+  next: UserPreferences,
+  names: Set<string>
 ): boolean {
-  const before = heldCardsBlockedByHardFilters(cards, preferences);
+  const before = heldCardsBlockedByHardFilters(cards, preferences).filter(
+    (block) => names.has(block.name)
+  );
   const after = new Set(
     heldCardsBlockedByHardFilters(cards, next).map((block) => block.name)
   );
@@ -296,6 +306,33 @@ function cardWouldClear(
     );
     return relevant && !after.has(block.name);
   });
+}
+
+/** Wallet cards the user marked must-keep. Advisories name only these. */
+export function keptCardNames(cards: UserCreditCard[]): Set<string> {
+  return new Set(
+    cards
+      .filter((card) => card.keepThisCard && card.name.trim())
+      .map((card) => card.name.trim())
+  );
+}
+
+/**
+ * Drop transferable-vs-portal failures when that choice is "No preference".
+ * Issuer, reward type, and named loyalty programs stay.
+ */
+export function omitOpenStrategyFailures(
+  blocks: HeldCardHardFilterBlock[],
+  preferences: UserPreferences
+): HeldCardHardFilterBlock[] {
+  if (!isNoPreferenceStrategies(preferences.rewardsStrategies)) return blocks;
+  const open: HeldCardHardFilterBlock[] = [];
+  for (const block of blocks) {
+    const parts = block.parts.filter((part) => part.kind !== "rewards_strategy");
+    if (parts.length === 0) continue;
+    open.push(parts.length === block.parts.length ? block : { ...block, parts });
+  }
+  return open;
 }
 
 export type StrategyUnlock = "portal" | "transferable" | "no_preference";
@@ -308,32 +345,53 @@ export function strategyUnlockForBlockedCards(
   const strategies = preferences.rewardsStrategies ?? ["no_preference"];
   if (isNoPreferenceStrategies(strategies)) return null;
 
+  const names = keptCardNames(cards);
+  if (names.size === 0) return null;
+  const keptCards = cards.filter(
+    (card) => card.keepThisCard && card.name.trim()
+  );
+
   if (
     !allowedConcreteStrategies(strategies).includes("portal") &&
-    (portalWouldUnlockBlockedCard(cards, preferences) ||
-      cardWouldClear(cards, preferences, {
-        ...preferences,
-        rewardsStrategies: withPortalAllowed(strategies),
-      }))
+    (portalWouldUnlockBlockedCard(keptCards, preferences) ||
+      cardWouldClear(
+        cards,
+        preferences,
+        {
+          ...preferences,
+          rewardsStrategies: withPortalAllowed(strategies),
+        },
+        names
+      ))
   ) {
     return "portal";
   }
 
   if (
     !allowedConcreteStrategies(strategies).includes("transferable") &&
-    cardWouldClear(cards, preferences, {
-      ...preferences,
-      rewardsStrategies: withTransferableAllowed(strategies),
-    })
+    cardWouldClear(
+      cards,
+      preferences,
+      {
+        ...preferences,
+        rewardsStrategies: withTransferableAllowed(strategies),
+      },
+      names
+    )
   ) {
     return "transferable";
   }
 
   if (
-    cardWouldClear(cards, preferences, {
-      ...preferences,
-      rewardsStrategies: ["no_preference"],
-    })
+    cardWouldClear(
+      cards,
+      preferences,
+      {
+        ...preferences,
+        rewardsStrategies: ["no_preference"],
+      },
+      names
+    )
   ) {
     return "no_preference";
   }
@@ -373,6 +431,7 @@ function cardsMissingTransferPath(
   const strategies = preferences.rewardsStrategies ?? ["no_preference"];
   const missing: HeldCardHardFilterBlock[] = [];
   for (const card of held) {
+    if (card.isUnmatchedCustomCard) continue;
     if (card.rewardType === "cashback") continue;
     if (reachesPreferredPrograms(card, programs)) continue;
     missing.push({
@@ -422,15 +481,25 @@ function withMissingTransferPath(
   return merged;
 }
 
+/**
+ * Pre-calculate warning for must-keep cards a hard filter removes.
+ * Cards not marked must-keep are never named. When rewards strategy is
+ * "No preference", portal-vs-transferable is not a failed requirement, so
+ * it cannot open this dialog or offer a strategy switch.
+ */
 export function hardFilterAdvisory(
   cards: UserCreditCard[],
   preferences: UserPreferences
 ): HardFilterAdvisory | null {
-  const blocks = withMissingTransferPath(
-    heldCardsBlockedByHardFilters(cards, preferences),
-    cards,
+  const kept = keptCardNames(cards);
+  const blocks = omitOpenStrategyFailures(
+    withMissingTransferPath(
+      heldCardsBlockedByHardFilters(cards, preferences),
+      cards,
+      preferences
+    ),
     preferences
-  );
+  ).filter((block) => kept.has(block.name));
   if (blocks.length === 0) return null;
 
   const kinds = new Set(blocks.flatMap((block) => block.parts.map((part) => part.kind)));

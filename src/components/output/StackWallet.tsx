@@ -792,14 +792,19 @@ export function StackWallet({
           <DetailSection title="Earnings">
             {earnings.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                This card isn&apos;t assigned as the best earn rate for any of
-                your spend categories — it&apos;s here for benefits or stack
-                fit.
+                {selected.isUnmatchedCustomCard
+                  ? "This card isn't assigned as the best earn rate for any of your spend categories."
+                  : "This card isn't assigned as the best earn rate for any of your spend categories — it's here for benefits or stack fit."}
               </p>
             ) : (
               <ul className="space-y-2.5">
                 {earnings.map((row) => {
-                  const earn = formatCategoryEarn(row, rewardTypePreference);
+                  const earn = formatCategoryEarn(
+                    row,
+                    selected.isUnmatchedCustomCard
+                      ? "no_preference"
+                      : rewardTypePreference
+                  );
                   return (
                     <li
                       key={row.category}
@@ -826,19 +831,28 @@ export function StackWallet({
                 <li className="flex items-center justify-between border-t border-border/50 pt-2.5 text-sm">
                   <span className="text-muted-foreground">Earnings total</span>
                   <span className="shrink-0 text-right font-mono tabular-nums text-gain">
-                    <span className="block font-semibold">
-                      {earningsTotalPoints.toLocaleString()} pts/yr
-                    </span>
-                    <span className="block text-[11px] font-normal text-muted-foreground">
-                      ≈ ${earningsTotalDollars.toLocaleString()} at{" "}
-                      {pointValueLabel()}
-                    </span>
+                    {selected.isUnmatchedCustomCard ? (
+                      <span className="block font-semibold">
+                        ${earningsTotalDollars.toLocaleString()}/yr
+                      </span>
+                    ) : (
+                      <>
+                        <span className="block font-semibold">
+                          {earningsTotalPoints.toLocaleString()} pts/yr
+                        </span>
+                        <span className="block text-[11px] font-normal text-muted-foreground">
+                          ≈ ${earningsTotalDollars.toLocaleString()} at{" "}
+                          {pointValueLabel()}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </li>
               </ul>
             )}
           </DetailSection>
 
+          {!selected.isUnmatchedCustomCard && (
           <DetailSection title="Benefits">
             {cardBenefits.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -921,7 +935,9 @@ export function StackWallet({
               </div>
             )}
           </DetailSection>
+          )}
 
+          {!selected.isUnmatchedCustomCard && (
           <DetailSection title="How you'll use these points">
             {earnings.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -939,6 +955,7 @@ export function StackWallet({
               </p>
             )}
           </DetailSection>
+          )}
 
           <div className="rounded-xl border border-border/70 bg-card px-5 py-4">
             <h5 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -951,12 +968,14 @@ export function StackWallet({
                   ${earningsTotalDollars.toLocaleString()}
                 </span>
               </li>
-              <li className="flex justify-between gap-3">
-                <span className="text-muted-foreground">Benefits</span>
-                <span className="font-mono tabular-nums text-gain">
-                  ${benefitsTotal.toLocaleString()}
-                </span>
-              </li>
+              {!selected.isUnmatchedCustomCard && (
+                <li className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Benefits</span>
+                  <span className="font-mono tabular-nums text-gain">
+                    ${benefitsTotal.toLocaleString()}
+                  </span>
+                </li>
+              )}
               <li className="flex justify-between gap-3">
                 <span className="text-muted-foreground">Annual fee</span>
                 <span className="font-mono tabular-nums">

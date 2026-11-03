@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { HardFilterDialog } from "@/components/inputs/HardFilterDialog";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { ScreenNav, type AppScreen } from "@/components/layout/ScreenNav";
@@ -62,9 +62,6 @@ export function StackOptimizerApp() {
     setSavedByCardId({});
     setReviewCardIds([]);
     setScreen("calculating");
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
   };
 
   const runCalculate = (prefs?: UserPreferences) => {
@@ -76,9 +73,6 @@ export function StackOptimizerApp() {
     setResultsRevealed(true);
     setSavedByCardId({});
     setScreen("stack");
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
   };
 
   const requestCalculate = () => {
@@ -171,17 +165,19 @@ export function StackOptimizerApp() {
     if (next === "nextSteps" && !(allCardsSaved && showNextSteps)) return;
     if (next !== "input" && !(hasCalculated && resultsRevealed)) return;
     setScreen(next);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const continueToNextSteps = () => {
     if (!allCardsSaved || !(hasCalculated && resultsRevealed)) return;
     setShowNextSteps(true);
     setScreen("nextSteps");
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const resultsReady = hasCalculated && resultsRevealed;
+
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screen]);
 
   return (
     <div className="min-h-screen">
@@ -200,8 +196,6 @@ export function StackOptimizerApp() {
             cards={cards}
             spending={spending}
             preferences={preferences}
-            isStale={isStale}
-            hasCalculated={hasCalculated}
             onAddCard={addCard}
             onUpdateCard={updateCard}
             onRemoveCard={removeCard}

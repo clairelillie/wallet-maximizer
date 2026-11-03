@@ -167,7 +167,7 @@ export function PreferencesInputs({
             <Label>Cash back or points</Label>
             <p className="text-xs text-muted-foreground">
               Limits the optimized stack to cash-back cards, points/miles cards,
-              or no preference. Combines with your ecosystem filter.
+              or no preference. Combines with your bank filter.
             </p>
             <Select
               value={preferences.rewardTypePreference}
@@ -200,10 +200,10 @@ export function PreferencesInputs({
 
           <div className="space-y-3 sm:col-span-2">
             <div>
-              <Label>Preferred ecosystems</Label>
+              <Label>Preferred banks</Label>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Recommendations use only cards from the issuers you select.
-                Cards outside those ecosystems stay in your fee review but
+                Cards outside those banks stay in your fee review but
                 won&apos;t appear in the optimized stack.
               </p>
             </div>
@@ -255,7 +255,7 @@ export function PreferencesInputs({
                         )
                         .join(" · ")}{" "}
                       won&apos;t be candidates for the optimized stack while
-                      preferred ecosystems stay limited to{" "}
+                      preferred banks stay limited to{" "}
                       {preferredLabels.join(", ") || "your selection"}.
                       You&apos;ll get an advisory when you calculate.
                     </p>

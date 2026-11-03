@@ -14,6 +14,9 @@ interface CreditCardListProps {
   onRemove: (id: string) => void;
 }
 
+const addButtonClass =
+  "h-14 min-h-14 w-full rounded-2xl px-6 text-base font-semibold sm:h-16 sm:min-h-16";
+
 export function CreditCardList({
   cards,
   onAdd,
@@ -33,16 +36,16 @@ export function CreditCardList({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {cards.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-muted/25 px-5 py-8 text-center">
-          <p className="font-medium">No credit cards yet</p>
-          <p className="mt-1.5 text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-dashed border-border/70 bg-card px-5 py-8 text-center sm:px-6">
+          <p className="text-base font-medium">No credit cards yet</p>
+          <p className="mt-1.5 text-base font-medium leading-relaxed text-muted-foreground">
             That’s fine — we’ll recommend a starter stack from your spend and
             habits. Add a card anytime if you already have one.
           </p>
-          <Button type="button" className="mt-5" onClick={onAdd}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button type="button" className={`mt-5 ${addButtonClass}`} onClick={onAdd}>
+            <Plus className="mr-2 size-5" />
             Add a card
           </Button>
         </div>
@@ -58,8 +61,13 @@ export function CreditCardList({
               canRemove
             />
           ))}
-          <Button type="button" variant="outline" className="w-full" onClick={onAdd}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button
+            type="button"
+            variant="outline"
+            className={addButtonClass}
+            onClick={onAdd}
+          >
+            <Plus className="mr-2 size-5" />
             Add another card
           </Button>
         </>

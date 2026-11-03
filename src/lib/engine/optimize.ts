@@ -517,15 +517,18 @@ function toStackCards(
       input.preferences.rewardTypePreference
     );
     const host =
-      earnsRewards && input.preferences.rewardTypePreference !== "cashback"
+      earnsRewards &&
+      !card.isUnmatchedCustomCard &&
+      input.preferences.rewardTypePreference !== "cashback"
         ? pointsConversionHost(card, stack)
         : undefined;
     if (host) {
       why += ` Cash back on this card converts to ${host.name} miles at 1 cent per mile.`;
     }
-    const loyaltyPath = earnsRewards
-      ? pointsPairingLoyaltyPath(card, stack, input.preferences)
-      : undefined;
+    const loyaltyPath =
+      earnsRewards && !card.isUnmatchedCustomCard
+        ? pointsPairingLoyaltyPath(card, stack, input.preferences)
+        : undefined;
     return buildStackCard(
       { ...card, isFromUserPortfolio: isHeld || card.isFromUserPortfolio },
       meta.role,

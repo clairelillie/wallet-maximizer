@@ -40,8 +40,9 @@ const SPEND_DRIVERS = new Set<BenefitValueDriver>([
 ]);
 
 function catalogBenefits(
-  card: Pick<NormalizedCard, "name" | "catalogId">
+  card: Pick<NormalizedCard, "name" | "catalogId" | "isUnmatchedCustomCard">
 ): CatalogBenefit[] {
+  if (card.isUnmatchedCustomCard) return [];
   return (
     (
       findCatalogCardById(card.catalogId) ?? findCatalogCardByName(card.name)
@@ -279,6 +280,7 @@ export function calculateBenefitPotential(
   card: NormalizedCard,
   behaviors: PerkBehaviorAnswers
 ): number {
+  if (card.isUnmatchedCustomCard) return 0;
   return sumBenefitValues(
     calculatePersonalizedBenefits(card, behaviors)
   );
@@ -290,6 +292,7 @@ export function calculatePersonalizedBenefits(
   behaviors: PerkBehaviorAnswers,
   overrides: BenefitOverrides = {}
 ): BenefitAssessment[] {
+  if (card.isUnmatchedCustomCard) return [];
   return applyBenefitChoices(
     assessmentsFromCatalog(card, catalogBenefits(card), behaviors, overrides)
   );

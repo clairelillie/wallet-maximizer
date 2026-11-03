@@ -48,9 +48,11 @@ export function CalculatingScreen({ onSeeResults }: CalculatingScreenProps) {
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
               Working
             </p>
-            <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              Calculating your optimal stack
-            </h2>
+            <div className="rounded-2xl border border-border/70 bg-card px-6 py-7 text-left sm:px-8 sm:py-8">
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                Calculating your optimal stack
+              </h2>
+            </div>
             <p className="text-[15px] leading-relaxed text-muted-foreground">
               Matching your spend, benefits, and preferences to the highest-value
               wallet we can build.
@@ -72,9 +74,11 @@ export function CalculatingScreen({ onSeeResults }: CalculatingScreenProps) {
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
               Done
             </p>
-            <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              Your results are ready
-            </h2>
+            <div className="rounded-2xl border border-border/70 bg-card px-6 py-7 text-left sm:px-8 sm:py-8">
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                Your results are ready
+              </h2>
+            </div>
             <p className="text-[15px] leading-relaxed text-muted-foreground">
               We&apos;ve built a recommended stack from your inputs. Open it when
               you&apos;re ready.

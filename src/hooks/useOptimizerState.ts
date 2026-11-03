@@ -17,29 +17,8 @@ import type {
 } from "@/types";
 
 export function useOptimizerState() {
-  const [cards, setCards] = useState<UserCreditCard[]>([
-    {
-      id: "demo-chase-sapphire-preferred",
-      catalogId: "chase-sapphire-preferred",
-      ecosystem: "chase",
-      name: "Chase Sapphire Preferred",
-      isCustom: false,
-      annualFee: 95,
-      baseMultiplier: 1,
-      multipliers: { dining: 3, grocery: 3, gas: 3 },
-      keepThisCard: true,
-    },
-    {
-      id: "demo-amex-gold",
-      catalogId: "amex-gold",
-      ecosystem: "amex",
-      name: "Amex Gold",
-      isCustom: false,
-      annualFee: 325,
-      baseMultiplier: 1,
-      multipliers: { dining: 4, grocery: 4 },
-      keepThisCard: true,
-    },
+  const [cards, setCards] = useState<UserCreditCard[]>(() => [
+    { ...DEFAULT_USER_CARD(), id: "card-1" },
   ]);
 
   const [spending, setSpending] = useState<MonthlySpending>(DEFAULT_SPENDING);

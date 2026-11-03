@@ -86,11 +86,13 @@ export function StackResultScreen({
   return (
     <div className="mx-auto max-w-3xl space-y-10">
       <header className="space-y-5">
-        <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-[2.5rem] sm:leading-tight">
-          {result.constraintTradeoff
-            ? "Keep your current cards"
-            : `Your recommended ${view.stack.length}-card stack`}
-        </h2>
+        <div className="rounded-2xl border border-border/70 bg-card px-6 py-7 sm:px-8 sm:py-8">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            {result.constraintTradeoff
+              ? "Keep your current cards"
+              : `Your recommended ${view.stack.length}-card stack`}
+          </h2>
+        </div>
         {result.constraintTradeoff ? (
           <div className="rounded-2xl border border-amber-200/70 bg-gradient-to-br from-amber-50/90 to-orange-50/40 px-5 py-5 dark:border-amber-900/40 dark:from-amber-950/25 dark:to-orange-950/15">
             <ConstraintTradeoffNote tradeoff={result.constraintTradeoff} />

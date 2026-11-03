@@ -180,6 +180,7 @@ export function benefitProfileSummary(behaviors: PerkBehaviorAnswers): {
       `${optionLabel(HOTEL_NIGHTS_OPTIONS, behaviors.hotelNights)} hotel nights/year`,
       ...(behaviors.hotelNights === "0" ? [] : [upscaleHotelLabel]),
       travelCreditLabel,
+      `TSA status: ${optionLabel(TRUSTED_TRAVELER_OPTIONS, behaviors.trustedTravelerStatus)}`,
     ],
     lifestyle: [
       `${optionLabel(MONTHLY_SPEND_OPTIONS, behaviors.rideshareMonthly)}/month rideshare`,

@@ -145,21 +145,19 @@ export const REWARDS_STRATEGY_OPTIONS: Array<{
   },
 ];
 
-/** Airline / hotel programs shown in the multi-select. */
+/** Airline and hotel programs shown in the multi-select. */
 export const LOYALTY_PROGRAM_OPTIONS: Array<{
   value: LoyaltyProgramSelection;
   label: string;
 }> = [
+  { value: "alaska", label: "Alaska Airlines" },
   { value: "american", label: "American Airlines" },
   { value: "delta", label: "Delta" },
-  { value: "united", label: "United" },
-  { value: "southwest", label: "Southwest" },
-  { value: "jetblue", label: "JetBlue" },
-  { value: "alaska", label: "Alaska Airlines" },
-  { value: "marriott", label: "Marriott" },
   { value: "hilton", label: "Hilton" },
-  { value: "other", label: "Other" },
-  { value: "none", label: "None" },
+  { value: "jetblue", label: "JetBlue" },
+  { value: "marriott", label: "Marriott" },
+  { value: "southwest", label: "Southwest" },
+  { value: "united", label: "United" },
 ];
 
 /** @deprecated Use LOYALTY_PROGRAM_OPTIONS */
@@ -267,10 +265,13 @@ export function describeCardLoyaltyPath(
     transferPartners?: LoyaltyProgramId[];
     directEarnPrograms?: LoyaltyProgramId[];
     travelMultipliers?: TravelMultipliers;
+    /** User-entered card with no catalog match — do not invent a redemption plan. */
+    isUnmatchedCustomCard?: boolean;
   },
   preferredLoyaltyPrograms: LoyaltyProgramSelection[],
   rewardsStrategies: RewardsStrategy[] = ["no_preference"]
 ): string | null {
+  if (card.isUnmatchedCustomCard) return null;
   const targets = activeLoyaltyPrograms(preferredLoyaltyPrograms);
   if (targets.length === 0) return null;
 

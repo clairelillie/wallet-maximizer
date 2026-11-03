@@ -21,6 +21,7 @@ export interface PointsPairCard {
   convertsToPointsWith?: string[];
   travelMultipliers?: TravelMultipliers;
   directEarnPrograms?: LoyaltyProgramId[];
+  isUnmatchedCustomCard?: boolean;
 }
 
 /** Miles card in this stack that can receive the cash-back card's rewards. */
@@ -83,6 +84,7 @@ export function pointsPairingLoyaltyPath(
     | "rewardsStrategies"
   >
 ): string | undefined {
+  if (card.isUnmatchedCustomCard) return undefined;
   const programs = preferences.preferredLoyaltyPrograms ?? [];
   const strategies = preferences.rewardsStrategies ?? ["no_preference"];
   const view = cardRewardsInStack(

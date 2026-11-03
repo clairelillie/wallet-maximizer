@@ -122,6 +122,30 @@ export function BenefitsInputs({
               </ChoiceButton>
             ))}
           </div>
+          {behaviors.hotelNights !== "0" ? (
+            <div className="space-y-3 border-l-2 border-border pl-4">
+              <h4 className="text-base font-semibold tracking-tight">
+                Would you book a prepaid stay of two nights or more at a
+                higher-end hotel through a card&apos;s travel portal?
+              </h4>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {TRAVEL_CREDIT_OPTIONS.map((option) => (
+                  <ChoiceButton
+                    key={option.value}
+                    selected={behaviors.upscaleHotelLikelihood === option.value}
+                    onClick={() => set("upscaleHotelLikelihood", option.value)}
+                  >
+                    {option.label}
+                  </ChoiceButton>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                For example, The Edit by Chase Travel, Fine Hotels + Resorts,
+                or The Hotel Collection. Count a stay you would actually book,
+                not one you could force to use the credit.
+              </p>
+            </div>
+          ) : null}
         </QuestionBlock>
 
         <QuestionBlock

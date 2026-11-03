@@ -550,6 +550,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   perkBehaviors: {
     loungeVisits: "never",
     hotelNights: "0",
+    upscaleHotelLikelihood: "no",
     travelCreditLikelihood: "no",
     checkedBagsPerYear: "0",
     rideshareMonthly: "0",

@@ -110,6 +110,7 @@ export type TrustedTravelerStatus =
 export type BenefitValueDriver =
   | "loungeVisits"
   | "hotelNights"
+  | "upscaleHotel"
   | "travelCredit"
   | "trustedTraveler"
   | "rideshare"
@@ -176,6 +177,12 @@ export interface CatalogBenefit {
 export interface PerkBehaviorAnswers {
   loungeVisits: LoungeVisitsBucket;
   hotelNights: HotelNightsBucket;
+  /**
+   * Whether the user would book a prepaid, two-night, higher-end stay
+   * through an issuer portal collection (The Edit, FHR, Hotel Collection).
+   * Ignored when hotelNights is "0".
+   */
+  upscaleHotelLikelihood: TravelCreditLikelihood;
   travelCreditLikelihood: TravelCreditLikelihood;
   checkedBagsPerYear: CheckedBagsBucket;
   rideshareMonthly: MonthlySpendBucket;

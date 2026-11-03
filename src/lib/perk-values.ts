@@ -143,6 +143,7 @@ export function optionLabel<T extends string>(
 export const DEFAULT_PERK_BEHAVIORS: PerkBehaviorAnswers = {
   loungeVisits: "never",
   hotelNights: "0",
+  upscaleHotelLikelihood: "no",
   travelCreditLikelihood: "no",
   checkedBagsPerYear: "0",
   rideshareMonthly: "0",
@@ -164,12 +165,20 @@ export function benefitProfileSummary(behaviors: PerkBehaviorAnswers): {
         ? "Might use travel credits"
         : "Unlikely to use travel credits";
 
+  const upscaleHotelLabel =
+    behaviors.upscaleHotelLikelihood === "yes"
+      ? "Would book a higher-end portal hotel stay"
+      : behaviors.upscaleHotelLikelihood === "maybe"
+        ? "Might book a higher-end portal hotel stay"
+        : "Unlikely to book a higher-end portal hotel stay";
+
   return {
     travel: [
       behaviors.loungeVisits === "never"
         ? "No lounge visits"
         : `${optionLabel(LOUNGE_VISIT_OPTIONS, behaviors.loungeVisits).replace(" times a year", "")} lounge visits/year`,
       `${optionLabel(HOTEL_NIGHTS_OPTIONS, behaviors.hotelNights)} hotel nights/year`,
+      ...(behaviors.hotelNights === "0" ? [] : [upscaleHotelLabel]),
       travelCreditLabel,
     ],
     lifestyle: [

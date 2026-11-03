@@ -76,6 +76,11 @@ function captureForDriver(
       return loungeCapture(behaviors.loungeVisits);
     case "hotelNights":
       return hotelNightsCapture(behaviors.hotelNights);
+    case "upscaleHotel":
+      return (
+        hotelNightsCapture(behaviors.hotelNights) *
+        travelCreditCapture(behaviors.upscaleHotelLikelihood)
+      );
     case "travelCredit":
       return travelCreditCapture(behaviors.travelCreditLikelihood);
     case "trustedTraveler":
@@ -98,6 +103,13 @@ function usageAssumption(
       return `${behaviors.loungeVisits} lounge visits/year`;
     case "hotelNights":
       return `${behaviors.hotelNights} hotel nights/year`;
+    case "upscaleHotel":
+      if (behaviors.hotelNights === "0") return "0 hotel nights/year";
+      return behaviors.upscaleHotelLikelihood === "yes"
+        ? `${behaviors.hotelNights} hotel nights/year; would book a prepaid higher-end portal stay`
+        : behaviors.upscaleHotelLikelihood === "maybe"
+          ? `${behaviors.hotelNights} hotel nights/year; might book a prepaid higher-end portal stay`
+          : `${behaviors.hotelNights} hotel nights/year; unlikely to book a prepaid higher-end portal stay`;
     case "trustedTraveler":
       return behaviors.trustedTravelerStatus === "would-use-reimbursement"
         ? "Would use TSA PreCheck / Global Entry reimbursement"

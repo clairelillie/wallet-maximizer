@@ -57,7 +57,7 @@ export const AMEX_CARDS: CatalogCardDefinition[] = [
         description:
           "Up to $300 semi-annually ($600/year) on prepaid Fine Hotels + Resorts or The Hotel Collection stays booked through Amex Travel. Hotel Collection requires two nights.",
         maxAnnualValue: 600,
-        valuedBy: "hotelNights",
+        valuedBy: "upscaleHotel",
         stackRule: "each",
       },
       {
@@ -121,7 +121,7 @@ export const AMEX_CARDS: CatalogCardDefinition[] = [
         description:
           "Complimentary Leaders Club Sterling status with The Leading Hotels of the World. Estimate what that is worth to you; it is not a statement credit.",
         maxAnnualValue: 150,
-        valuedBy: "hotelNights",
+        valuedBy: "upscaleHotel",
         stackRule: "once",
         stackGroup: "eliteStatus",
       },
@@ -234,7 +234,7 @@ export const AMEX_CARDS: CatalogCardDefinition[] = [
         description:
           "$100 toward eligible charges each time you book a prepaid stay of two nights or more with The Hotel Collection through Amex Travel. This line counts one credit a year.",
         maxAnnualValue: 100,
-        valuedBy: "hotelNights",
+        valuedBy: "upscaleHotel",
         stackRule: "each",
       },
       {

@@ -53,6 +53,7 @@ const spending: MonthlySpending = {
 const quietHabits: PerkBehaviorAnswers = {
   loungeVisits: "never",
   hotelNights: "0",
+  upscaleHotelLikelihood: "no",
   travelCreditLikelihood: "no",
   checkedBagsPerYear: "0",
   rideshareMonthly: "0",
@@ -65,6 +66,7 @@ const quietHabits: PerkBehaviorAnswers = {
 const heavyTravelHabits: PerkBehaviorAnswers = {
   loungeVisits: "10+",
   hotelNights: "20+",
+  upscaleHotelLikelihood: "yes",
   travelCreditLikelihood: "yes",
   checkedBagsPerYear: "6-10",
   rideshareMonthly: "51-100",
@@ -252,6 +254,22 @@ describe("benefit personalization", () => {
     expect(sumBenefitValues(overridden)).toBe(sumBenefitValues(lines) + 300);
   });
 
+  it("does not fill Exclusive Tables from Resy spend", () => {
+    const reserve = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Chase Sapphire Reserve")!,
+      "csr"
+    );
+    const lines = calculatePersonalizedBenefits(reserve, heavyTravelHabits);
+    const tables = lines.find((l) => l.id.startsWith("exclusive-tables"));
+    expect(tables?.valuedBy).toBe("manual");
+    expect(tables?.effectiveValue).toBe(0);
+
+    const withValue = calculatePersonalizedBenefits(reserve, heavyTravelHabits, {
+      [tables!.id]: 150,
+    });
+    expect(withValue.find((l) => l.id === tables!.id)?.effectiveValue).toBe(150);
+  });
+
   it("counts only the higher Chase Sapphire Preferred benefit option", () => {
     const preferred = catalogToNormalized(
       CARD_CATALOG.find((c) => c.name === "Chase Sapphire Preferred")!,
@@ -310,6 +328,100 @@ describe("benefit personalization", () => {
       stacked.find((line) => line.id.startsWith("csr-global-entry"))
         ?.countsInStack
     ).not.toBe(false);
+  });
+
+  it("values curated portal hotel credits only when that stay would be booked", () => {
+    const midscale: PerkBehaviorAnswers = {
+      ...quietHabits,
+      hotelNights: "6-10",
+      upscaleHotelLikelihood: "no",
+    };
+    const upscale: PerkBehaviorAnswers = {
+      ...midscale,
+      upscaleHotelLikelihood: "yes",
+    };
+    const none: PerkBehaviorAnswers = {
+      ...quietHabits,
+      hotelNights: "0",
+      upscaleHotelLikelihood: "yes",
+    };
+
+    const reserve = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Chase Sapphire Reserve")!,
+      "csr"
+    );
+    const preferred = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Chase Sapphire Preferred")!,
+      "csp"
+    );
+    const plat = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Platinum")!,
+      "plat"
+    );
+    const gold = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Amex Gold")!,
+      "gold"
+    );
+
+    const reserveMid = calculatePersonalizedBenefits(reserve, midscale);
+    const reserveUp = calculatePersonalizedBenefits(reserve, upscale);
+    expect(
+      reserveMid.find((line) => line.id.startsWith("the-edit"))?.effectiveValue
+    ).toBe(0);
+    expect(
+      reserveUp.find((line) => line.id.startsWith("the-edit"))?.effectiveValue
+    ).toBe(275);
+    expect(
+      reserveMid.find((line) => line.id.startsWith("chase-travel-hotels"))
+        ?.effectiveValue
+    ).toBe(138);
+    expect(
+      calculatePersonalizedBenefits(reserve, none).find((line) =>
+        line.id.startsWith("the-edit")
+      )?.effectiveValue
+    ).toBe(0);
+
+    const preferredMid = calculatePersonalizedBenefits(preferred, midscale);
+    const preferredUp = calculatePersonalizedBenefits(preferred, upscale);
+    expect(
+      preferredMid.find((line) => line.id.startsWith("csp-hotel-credit"))
+        ?.effectiveValue
+    ).toBe(55);
+    expect(
+      preferredUp.find((line) => line.id.startsWith("csp-hotel-credit"))
+        ?.effectiveValue
+    ).toBe(55);
+
+    expect(
+      calculatePersonalizedBenefits(plat, midscale).find((line) =>
+        line.id.startsWith("hotel-credit")
+      )?.effectiveValue
+    ).toBe(0);
+    expect(
+      calculatePersonalizedBenefits(plat, upscale).find((line) =>
+        line.id.startsWith("hotel-credit")
+      )?.effectiveValue
+    ).toBe(330);
+    expect(
+      calculatePersonalizedBenefits(plat, upscale).find((line) =>
+        line.id.startsWith("hotel-status")
+      )?.effectiveValue
+    ).toBe(83);
+    expect(
+      calculatePersonalizedBenefits(plat, midscale).find((line) =>
+        line.id.startsWith("hotel-status")
+      )?.effectiveValue
+    ).toBe(0);
+    expect(
+      calculatePersonalizedBenefits(gold, upscale).find((line) =>
+        line.id.startsWith("hotel-collection")
+      )?.effectiveValue
+    ).toBe(55);
+    expect(
+      calculatePersonalizedBenefits(gold, midscale).find((line) =>
+        line.id.startsWith("hotel-collection")
+      )?.effectiveValue
+    ).toBe(0);
   });
 });
 

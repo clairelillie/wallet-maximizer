@@ -130,7 +130,7 @@ export const CHASE_CARDS: CatalogCardDefinition[] = [
         description:
           "Two $250 statement credits ($500/year) on prepaid stays of two nights or more booked through The Edit by Chase Travel.",
         maxAnnualValue: 500,
-        valuedBy: "hotelNights",
+        valuedBy: "upscaleHotel",
         stackRule: "each",
       },
       {
@@ -148,7 +148,8 @@ export const CHASE_CARDS: CatalogCardDefinition[] = [
         description:
           "Up to $150 from January through June and $150 from July through December ($300/year) at Sapphire Reserve Exclusive Tables.",
         maxAnnualValue: 300,
-        valuedBy: "resy",
+        // OpenTable list curated with The Infatuation, not Resy. No spend question matches it.
+        valuedBy: "manual",
         stackRule: "each",
       },
       {

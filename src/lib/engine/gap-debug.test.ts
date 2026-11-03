@@ -4,6 +4,8 @@ import { DEFAULT_PREFERENCES, DEFAULT_SPENDING } from "@/lib/constants";
 import { generateCandidatePool } from "@/lib/engine/candidate-pool";
 import { optimizeStackSize } from "@/lib/engine/optimize";
 import { normalizeUserCard } from "@/lib/card-utils";
+import { calculateStackValue } from "@/lib/engine/stack-value";
+import { usesPortalRates } from "@/lib/constants";
 import {
   hardFilterAdvisory,
   passesCompliantPool,
@@ -92,6 +94,22 @@ function run(
   const gap = kept && compliant
     ? Math.round(kept.valuation.stackValue - compliant.valuation.stackValue)
     : null;
+  const raw = optimizeStackSize(pool, input, prefs.maxCards, {});
+  const currentValue = calculateStackValue(
+    held,
+    spending,
+    prefs.perkBehaviors,
+    {},
+    {
+      willingToUseTravelPortal: usesPortalRates(
+        prefs.rewardsStrategies,
+        prefs.rewardTypePreference
+      ),
+    }
+  ).stackValue;
+  const rawGain = raw
+    ? Math.round(raw.valuation.stackValue - currentValue)
+    : null;
   const primary = result.alternativeStacks.find((alt) => alt.isPrimary);
   // eslint-disable-next-line no-console
   console.log(
@@ -121,6 +139,26 @@ function run(
       compliantNames: compliant?.cards.map((c) => c.name),
       compliantValue: compliant?.valuation.stackValue,
       gap,
+      rawGain,
+      rawStack: raw?.cards.map((c) => c.name),
+      uiNet: primary
+        ? primary.stack.reduce((sum, card) => {
+            const earnings = primary.cheatSheet
+              .filter(
+                (row) => row.cardName === card.name && row.monthlySpend > 0
+              )
+              .reduce((total, row) => total + row.annualReward, 0);
+            const benefits = primary.benefits
+              .filter((benefit) => benefit.cardName === card.name)
+              .reduce(
+                (total, benefit) =>
+                  total +
+                  (benefit.countsInStack === false ? 0 : benefit.effectiveValue),
+                0
+              );
+            return sum + Math.round(earnings) + Math.round(benefits) - card.annualFee;
+          }, 0)
+        : null,
       savedNet: primary
         ? Math.round(
             primary.rewardsSubtotal +
@@ -257,7 +295,51 @@ describe("gap debug", () => {
       userCard("Chase Sapphire Preferred", "csp", true),
       userCard("Amex Gold", "gold", true),
     ], { preferredEcosystems: ["citi"] });
-    const programs = ["american", "delta", "united", "marriott", "hyatt"] as const;
+    run(
+      "aa-nopref-travel-max2",
+      vx(false),
+      {
+        maxCards: 2,
+        preferredLoyaltyPrograms: ["american"],
+        rewardsStrategies: ["no_preference"],
+      },
+      spendHi,
+      travelYes
+    );
+    run(
+      "aa-nopref-travel-max4",
+      vx(false),
+      {
+        maxCards: 4,
+        preferredLoyaltyPrograms: ["american"],
+        rewardsStrategies: ["no_preference"],
+      },
+      DEFAULT_SPENDING,
+      travelYes
+    );
+    run(
+      "aa-nopref-quiet-max4",
+      vx(false),
+      {
+        maxCards: 4,
+        preferredLoyaltyPrograms: ["american"],
+        rewardsStrategies: ["no_preference"],
+      },
+      DEFAULT_SPENDING,
+      quiet
+    );
+    run(
+      "aa-transfer-only-heavy",
+      vx(false),
+      {
+        maxCards: 4,
+        preferredLoyaltyPrograms: ["american"],
+        rewardsStrategies: ["transferable"],
+      },
+      DEFAULT_SPENDING,
+      heavy
+    );
+    const programs = ["american", "delta", "united", "marriott", "hilton"] as const;
     const strategySets = [
       ["transferable"],
       ["portal"],
@@ -277,6 +359,22 @@ describe("gap debug", () => {
                 preferredLoyaltyPrograms: [program],
                 rewardsStrategies: [...strategies],
               },
+              DEFAULT_SPENDING,
+              habit
+            );
+          }
+        }
+      }
+    }
+    const names = CARD_CATALOG.map((card) => card.name);
+    for (let i = 0; i < names.length; i++) {
+      for (let j = i + 1; j < names.length; j++) {
+        for (const maxCards of [1, 2] as const) {
+          for (const habit of [quiet, heavy]) {
+            run(
+              `pair-${names[i]}+${names[j]}-max${maxCards}-${habit === quiet ? "q" : "h"}`,
+              [userCard(names[i], "a"), userCard(names[j], "b")],
+              { maxCards },
               DEFAULT_SPENDING,
               habit
             );

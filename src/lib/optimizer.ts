@@ -10,8 +10,8 @@ import {
   blockLines,
   hardFilterClauses,
   heldCardsBlockedByHardFilters,
-  passesCompliantPool,
   pricedHardFilterBlocks,
+  compliantCandidatePool,
 } from "./hard-filters";
 import {
   annualRewardValue,
@@ -49,8 +49,12 @@ export function optimizeStack(input: OptimizerInput): OptimizationResult {
   const overrides = input.benefitOverrides ?? {};
   const pool = generateCandidatePool(input);
   const primarySize = input.preferences.maxCards;
+  const requirePointsPairing =
+    input.preferences.rewardTypePreference === "points";
 
-  const primary = optimizeStackSize(pool, input, primarySize, overrides);
+  const primary = optimizeStackSize(pool, input, primarySize, overrides, {
+    requirePointsPairing,
+  });
 
   const stackCards = primary?.stackCards ?? [];
   const valuation = primary?.valuation;
@@ -98,15 +102,13 @@ export function optimizeStack(input: OptimizerInput): OptimizationResult {
     const keptPick = optimizeStackSize(held, input, primarySize, overrides, {
       ignoreLoyaltyCoverage: true,
     });
-    const compliantPool = pool.filter((card) =>
-      passesCompliantPool(card, input.preferences)
-    );
+    const compliantPool = compliantCandidatePool(pool, input.preferences);
     const compliant = optimizeStackSize(
       compliantPool,
       input,
       primarySize,
       overrides,
-      { skipMissingKeeps: true }
+      { skipMissingKeeps: true, requirePointsPairing }
     );
     const tradeoff =
       keptPick && compliant
@@ -180,7 +182,8 @@ export function optimizeStack(input: OptimizerInput): OptimizationResult {
     primarySize,
     netAnnualPosition,
     currentNetPosition,
-    overrides
+    overrides,
+    { requirePointsPairing }
   );
 
   const complexityTradeoff = complexityFromAlternatives(
@@ -258,7 +261,11 @@ function finalizeFromPick(
       primarySize,
       netAnnualPosition,
       currentNetPosition,
-      overrides ?? {}
+      overrides ?? {},
+      {
+        requirePointsPairing:
+          input.preferences.rewardTypePreference === "points",
+      }
     ),
     pick,
     primarySize,
@@ -570,7 +577,11 @@ export function revalueOptimizationResult(
     input.preferences.maxCards,
     netAnnualPosition,
     currentValuation.stackValue,
-    overrides
+    overrides,
+    {
+      requirePointsPairing:
+        input.preferences.rewardTypePreference === "points",
+    }
   ).map((alt) => {
     if (!alt.isPrimary) return alt;
     return {

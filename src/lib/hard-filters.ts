@@ -471,3 +471,35 @@ export function passesCompliantPool(
 ): boolean {
   return matchesNonLoyaltyHardPreferences(card, preferences);
 }
+
+/**
+ * Cards allowed in a preference-compliant stack.
+ * When the user wants points, a cash-back card is included only if a miles
+ * card that can convert it is already compliant. The search then keeps that
+ * cash-back card only in stacks that actually contain the miles card.
+ */
+export function compliantCandidatePool(
+  pool: NormalizedCard[],
+  preferences: UserPreferences
+): NormalizedCard[] {
+  const base = pool.filter((card) => passesCompliantPool(card, preferences));
+  if (preferences.rewardTypePreference !== "points") return base;
+
+  const hostIds = new Set(
+    base
+      .filter((card) => card.rewardType === "points" && card.catalogId)
+      .map((card) => card.catalogId as string)
+  );
+  const paired = pool.filter((card) => {
+    if (base.includes(card)) return false;
+    if (card.rewardType !== "cashback") return false;
+    if (!card.convertsToPointsWith?.some((id) => hostIds.has(id))) {
+      return false;
+    }
+    return matchesPreferredEcosystems(
+      card.ecosystem,
+      preferences.preferredEcosystems
+    );
+  });
+  return [...base, ...paired];
+}

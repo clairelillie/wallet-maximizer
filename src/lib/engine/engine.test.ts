@@ -1835,3 +1835,128 @@ describe("loyalty constraint tradeoff", () => {
     expect(optimizeStack(input).constraintTradeoff).toBeUndefined();
   });
 });
+
+describe("Savor cash back converts with Venture miles", () => {
+  it("keeps Savor as cash back when no Venture card is held", () => {
+    const cards = [userCard("Capital One Savor", { id: "savor" })];
+    const preferences = {
+      ...DEFAULT_PREFERENCES,
+      rewardTypePreference: "points" as const,
+      rewardsStrategies: ["no_preference" as const],
+    };
+    const advisory = hardFilterAdvisory(cards, preferences);
+    expect(
+      advisory?.blockedCards.some((card) => card.name.includes("Savor"))
+    ).toBe(true);
+    expect(advisory?.showClearRewardType).toBe(true);
+  });
+
+  it("treats held Savor as points once Venture X is in the wallet", () => {
+    const cards = [
+      userCard("Capital One Venture X", { id: "vx", keepThisCard: true }),
+      userCard("Capital One Savor", { id: "savor", keepThisCard: true }),
+    ];
+    const preferences = {
+      ...DEFAULT_PREFERENCES,
+      maxCards: 2 as const,
+      preferredEcosystems: ["capital-one" as const],
+      rewardTypePreference: "points" as const,
+      rewardsStrategies: ["transferable" as const],
+      preferredLoyaltyPrograms: ["jetblue" as const],
+      perkBehaviors: quietHabits,
+    };
+    const advisory = hardFilterAdvisory(cards, preferences);
+    expect(
+      advisory?.blockedCards.some((card) => card.name.includes("Savor"))
+    ).toBeFalsy();
+
+    const result = optimizeStack(
+      baseInput({
+        cards,
+        preferences,
+      })
+    );
+    const savor = result.stack.find((card) => card.name === "Capital One Savor");
+    expect(savor).toBeDefined();
+    expect(savor?.loyaltyPath).toMatch(/converts to Capital One Venture X miles/i);
+    expect(savor?.loyaltyPath).toMatch(/JetBlue/);
+    expect(savor?.whyChosen).toMatch(/converts to Capital One Venture X miles/i);
+  });
+
+  it("can add Savor to a points search when Venture X can take the miles", () => {
+    const input = baseInput({
+      cards: [],
+      spending: {
+        ...spending,
+        dining: 800,
+        grocery: 800,
+      },
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["capital-one"],
+        rewardTypePreference: "points",
+        rewardsStrategies: ["no_preference"],
+        preferredLoyaltyPrograms: [],
+        perkBehaviors: quietHabits,
+      },
+    });
+    const pool = generateCandidatePool(input);
+    expect(pool.some((card) => card.name === "Capital One Savor")).toBe(true);
+    expect(pool.some((card) => card.name === "Capital One Venture X")).toBe(
+      true
+    );
+
+    const result = optimizeStack(input);
+    const names = result.stack.map((card) => card.name);
+    expect(names).toContain("Capital One Savor");
+    expect(names.some((name) => name.startsWith("Capital One Venture"))).toBe(
+      true
+    );
+    const savor = result.stack.find((card) => card.name === "Capital One Savor");
+    expect(savor?.loyaltyPath).toMatch(/converts to Capital One Venture/);
+    expect(savor?.action).toBe("ADD");
+  });
+
+  it("does not offer Savor in a points search that cannot include Venture", () => {
+    const pool = generateCandidatePool(
+      baseInput({
+        cards: [],
+        preferences: {
+          ...DEFAULT_PREFERENCES,
+          preferredEcosystems: ["chase"],
+          rewardTypePreference: "points",
+          rewardsStrategies: ["no_preference"],
+          perkBehaviors: quietHabits,
+        },
+      })
+    );
+    expect(pool.some((card) => card.name === "Capital One Savor")).toBe(false);
+    expect(pool.some((card) => card.name === "Capital One Venture X")).toBe(
+      false
+    );
+  });
+
+  it("leaves Savor as cash back when the user asked for cash back", () => {
+    const result = optimizeStack(
+      baseInput({
+        cards: [userCard("Capital One Savor", { id: "savor", keepThisCard: true })],
+        preferences: {
+          ...DEFAULT_PREFERENCES,
+          maxCards: 2,
+          preferredEcosystems: ["capital-one"],
+          rewardTypePreference: "cashback",
+          rewardsStrategies: ["no_preference"],
+          perkBehaviors: quietHabits,
+        },
+      })
+    );
+    const savor = result.stack.find((card) => card.name === "Capital One Savor");
+    expect(savor).toBeDefined();
+    expect(savor?.loyaltyPath ?? "").not.toMatch(/converts/i);
+    expect(savor?.whyChosen ?? "").not.toMatch(/converts/i);
+    expect(result.stack.some((card) => card.name.includes("Venture"))).toBe(
+      false
+    );
+  });
+});

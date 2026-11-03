@@ -10,10 +10,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { ConstraintTradeoffNote } from "@/components/output/ConstraintTradeoffNote";
 import { RewardsBreakdownDetails } from "@/components/output/RewardsBreakdownDetails";
 import type {
   CardFeeVerdict,
   ComplexityTradeoff,
+  ConstraintTradeoff,
   RewardsBreakdown,
 } from "@/types";
 
@@ -29,6 +31,7 @@ interface AnnualFeeVerdictProps {
   currentRewardsBreakdown: RewardsBreakdown;
   optimizedRewardsBreakdown: RewardsBreakdown;
   complexityTradeoff: ComplexityTradeoff;
+  constraintTradeoff?: ConstraintTradeoff;
 }
 
 const ACTION_STYLES: Record<
@@ -126,8 +129,9 @@ export function AnnualFeeVerdict({
   currentRewardsBreakdown,
   optimizedRewardsBreakdown,
   complexityTradeoff,
+  constraintTradeoff,
 }: AnnualFeeVerdictProps) {
-  const gainIsPositive = netGainVsCurrent >= 0;
+  const gainIsPositive = !constraintTradeoff && netGainVsCurrent >= 0;
   const rewardDelta = totalEstimatedValue - totalCurrentEstimatedRewards;
   const feeDelta = totalOptimizedAnnualFees - totalCurrentAnnualFees;
 
@@ -170,41 +174,47 @@ export function AnnualFeeVerdict({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <p className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
-            {gainIsPositive ? (
-              <>
-                You would earn{" "}
-                <span className="tabular-nums text-gain">
-                  ${netGainVsCurrent.toLocaleString()}
-                </span>{" "}
-                more per year with the optimized stack
-              </>
-            ) : netGainVsCurrent === 0 ? (
-              <>
-                The optimized stack is about even with your current wallet on a
-                net basis
-              </>
-            ) : (
-              <>
-                The optimized stack comes out{" "}
-                <span className="tabular-nums text-amber-700 dark:text-amber-400">
-                  ${Math.abs(netGainVsCurrent).toLocaleString()}
-                </span>{" "}
-                behind your current wallet on a net basis
-              </>
-            )}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            That compares net value (projected rewards minus annual fees).
-            Rewards{" "}
-            {rewardDelta >= 0 ? "increase" : "decrease"} by ~$
-            {Math.abs(rewardDelta).toLocaleString()}
-            {feeDelta === 0
-              ? "; fees stay about the same."
-              : feeDelta > 0
-                ? `; fees go up by $${feeDelta.toLocaleString()}.`
-                : `; fees drop by $${Math.abs(feeDelta).toLocaleString()}.`}
-          </p>
+          {constraintTradeoff ? (
+            <ConstraintTradeoffNote tradeoff={constraintTradeoff} />
+          ) : (
+            <>
+              <p className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+                {gainIsPositive ? (
+                  <>
+                    You would earn{" "}
+                    <span className="tabular-nums text-gain">
+                      ${netGainVsCurrent.toLocaleString()}
+                    </span>{" "}
+                    more per year with the optimized stack
+                  </>
+                ) : netGainVsCurrent === 0 ? (
+                  <>
+                    The optimized stack is about even with your current wallet
+                    on a net basis
+                  </>
+                ) : (
+                  <>
+                    The optimized stack comes out{" "}
+                    <span className="tabular-nums text-amber-700 dark:text-amber-400">
+                      ${Math.abs(netGainVsCurrent).toLocaleString()}
+                    </span>{" "}
+                    behind your current wallet on a net basis
+                  </>
+                )}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                That compares net value (projected rewards minus annual fees).
+                Rewards{" "}
+                {rewardDelta >= 0 ? "increase" : "decrease"} by ~$
+                {Math.abs(rewardDelta).toLocaleString()}
+                {feeDelta === 0
+                  ? "; fees stay about the same."
+                  : feeDelta > 0
+                    ? `; fees go up by $${feeDelta.toLocaleString()}.`
+                    : `; fees drop by $${Math.abs(feeDelta).toLocaleString()}.`}
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
 

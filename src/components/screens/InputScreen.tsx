@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { BenefitsInputs } from "@/components/inputs/BenefitsInputs";
 import { CreditCardList } from "@/components/inputs/CreditCardList";
@@ -34,6 +34,8 @@ interface InputScreenProps {
   onSpendingChange: (spending: MonthlySpending) => void;
   onPreferencesChange: (preferences: UserPreferences) => void;
   onCalculate: () => void;
+  focusPreferences?: boolean;
+  onFocusPreferencesHandled?: () => void;
 }
 
 export function InputScreen({
@@ -48,8 +50,23 @@ export function InputScreen({
   onSpendingChange,
   onPreferencesChange,
   onCalculate,
+  focusPreferences = false,
+  onFocusPreferencesHandled,
 }: InputScreenProps) {
   const [step, setStep] = useState<InputStep>("wallet");
+
+  useEffect(() => {
+    if (!focusPreferences) return;
+    setStep("preferences");
+    const timer = window.setTimeout(() => {
+      document.getElementById("loyalty-programs")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      onFocusPreferencesHandled?.();
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [focusPreferences, onFocusPreferencesHandled]);
 
   const stepIndex = INPUT_STEPS.findIndex((s) => s.id === step);
 

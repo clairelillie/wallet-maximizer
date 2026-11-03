@@ -118,15 +118,15 @@ export function annualFromMonthlyBucket(
 }
 
 export function loungeCapture(bucket: LoungeVisitsBucket): number {
-  return LOUNGE_CAPTURE[bucket];
+  return LOUNGE_CAPTURE[bucket] ?? 0;
 }
 
 export function hotelNightsCapture(bucket: HotelNightsBucket): number {
-  return HOTEL_CAPTURE[bucket];
+  return HOTEL_CAPTURE[bucket] ?? 0;
 }
 
 export function travelCreditCapture(likelihood: TravelCreditLikelihood): number {
-  return TRAVEL_CREDIT_CAPTURE[likelihood];
+  return TRAVEL_CREDIT_CAPTURE[likelihood] ?? 0;
 }
 
 export function trustedTravelerCapture(status: TrustedTravelerStatus): number {

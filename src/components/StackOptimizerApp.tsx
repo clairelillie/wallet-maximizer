@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { EcosystemMismatchDialog } from "@/components/inputs/EcosystemMismatchDialog";
+import { HardFilterDialog } from "@/components/inputs/HardFilterDialog";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { ScreenNav, type AppScreen } from "@/components/layout/ScreenNav";
 import { CalculatingScreen } from "@/components/screens/CalculatingScreen";
@@ -10,15 +10,13 @@ import { InputScreen } from "@/components/screens/InputScreen";
 import { NextStepsScreen } from "@/components/screens/NextStepsScreen";
 import { StackResultScreen } from "@/components/screens/StackResultScreen";
 import { useOptimizerState } from "@/hooks/useOptimizerState";
+import { hardFilterWarningCopy } from "@/lib/constraint-copy";
+import { hardFilterAdvisory } from "@/lib/hard-filters";
 import {
-  ecosystemLabel,
-  getKeptCardsOutsidePreferredEcosystems,
+  withPortalAllowed,
+  withTransferableAllowed,
 } from "@/lib/constants";
-import type {
-  PreferredEcosystem,
-  SavedCardValue,
-  UserPreferences,
-} from "@/types";
+import type { SavedCardValue, UserPreferences } from "@/types";
 
 export function StackOptimizerApp() {
   const {
@@ -42,25 +40,21 @@ export function StackOptimizerApp() {
   const [screen, setScreen] = useState<AppScreen>("input");
   const [resultsRevealed, setResultsRevealed] = useState(false);
   const [showNextSteps, setShowNextSteps] = useState(false);
-  const [mismatchDialogOpen, setMismatchDialogOpen] = useState(false);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [focusPreferences, setFocusPreferences] = useState(false);
   const [savedByCardId, setSavedByCardId] = useState<
     Record<string, SavedCardValue>
   >({});
   /** Card ids that must be saved for the active stack option. */
   const [reviewCardIds, setReviewCardIds] = useState<string[]>([]);
 
-  const mismatchedKeptCards = useMemo(
-    () =>
-      getKeptCardsOutsidePreferredEcosystems(
-        cards,
-        preferences.preferredEcosystems
-      ),
-    [cards, preferences.preferredEcosystems]
+  const filterAdvisory = useMemo(
+    () => hardFilterAdvisory(cards, preferences),
+    [cards, preferences]
   );
-
-  const preferredLabels = preferences.preferredEcosystems
-    .filter((e) => e !== "flexible")
-    .map((e) => ecosystemLabel(e));
+  const filterWarning = filterAdvisory
+    ? hardFilterWarningCopy(filterAdvisory.clauses)
+    : null;
 
   const goToCalculating = () => {
     setResultsRevealed(false);
@@ -88,35 +82,62 @@ export function StackOptimizerApp() {
   };
 
   const requestCalculate = () => {
-    if (mismatchedKeptCards.length > 0) {
-      setMismatchDialogOpen(true);
+    if (filterAdvisory) {
+      setFilterDialogOpen(true);
       return;
     }
     runCalculate();
   };
 
-  const finishWithPreferences = (next: UserPreferences) => {
-    setMismatchDialogOpen(false);
-    runCalculate(next);
-  };
-
-  const proceedWithCurrentFilter = () => {
-    setMismatchDialogOpen(false);
+  const keepFilterAndCalculate = () => {
+    setFilterDialogOpen(false);
     runCalculate();
   };
 
-  const includeMismatchedIssuers = () => {
-    const issuers = new Set<PreferredEcosystem>(
-      preferences.preferredEcosystems.filter((e) => e !== "flexible")
-    );
-    for (const card of mismatchedKeptCards) {
-      if (card.ecosystem !== "unknown" && card.ecosystem !== "flexible") {
-        issuers.add(card.ecosystem);
-      }
-    }
-    finishWithPreferences({
+  const calculateWithPreferences = (next: UserPreferences) => {
+    setFilterDialogOpen(false);
+    runCalculate(next);
+  };
+
+  const allowPortalBookings = () => {
+    calculateWithPreferences({
       ...preferences,
-      preferredEcosystems: Array.from(issuers),
+      rewardsStrategies: withPortalAllowed(preferences.rewardsStrategies),
+    });
+  };
+
+  const allowTransferablePoints = () => {
+    calculateWithPreferences({
+      ...preferences,
+      rewardsStrategies: withTransferableAllowed(preferences.rewardsStrategies),
+    });
+  };
+
+  const allowAnyStrategy = () => {
+    calculateWithPreferences({
+      ...preferences,
+      rewardsStrategies: ["no_preference"],
+    });
+  };
+
+  const clearRewardType = () => {
+    calculateWithPreferences({
+      ...preferences,
+      rewardTypePreference: "no_preference",
+    });
+  };
+
+  const editLoyaltyPrograms = () => {
+    setFilterDialogOpen(false);
+    setScreen("input");
+    setFocusPreferences(true);
+  };
+
+  const includeMismatchedIssuers = () => {
+    if (!filterAdvisory) return;
+    calculateWithPreferences({
+      ...preferences,
+      preferredEcosystems: filterAdvisory.issuersToInclude,
     });
   };
 
@@ -187,6 +208,8 @@ export function StackOptimizerApp() {
             onSpendingChange={setSpending}
             onPreferencesChange={setPreferences}
             onCalculate={requestCalculate}
+            focusPreferences={focusPreferences}
+            onFocusPreferencesHandled={() => setFocusPreferences(false)}
           />
         )}
 
@@ -247,22 +270,48 @@ export function StackOptimizerApp() {
         MVP — local state only. Not financial advice.
       </footer>
 
-      <EcosystemMismatchDialog
-        open={mismatchDialogOpen}
-        onDismiss={() => setMismatchDialogOpen(false)}
-        onProceed={proceedWithCurrentFilter}
-        onIncludeIssuers={includeMismatchedIssuers}
-        onUseFlexible={() =>
-          finishWithPreferences({
-            ...preferences,
-            preferredEcosystems: ["flexible"],
-          })
+      <HardFilterDialog
+        open={filterDialogOpen}
+        title={filterWarning?.title ?? "Advisory"}
+        message={filterWarning?.message ?? ""}
+        blockedCards={filterAdvisory?.blockedCards ?? []}
+        onDismiss={() => setFilterDialogOpen(false)}
+        onKeepFilter={keepFilterAndCalculate}
+        onIncludeIssuers={
+          filterAdvisory?.showIncludeIssuers
+            ? includeMismatchedIssuers
+            : undefined
         }
-        preferredLabels={preferredLabels}
-        mismatchedCards={mismatchedKeptCards.map((c) => ({
-          name: c.name,
-          ecosystemLabel: ecosystemLabel(c.ecosystem),
-        }))}
+        onUseFlexible={
+          filterAdvisory?.showFlexible
+            ? () =>
+                calculateWithPreferences({
+                  ...preferences,
+                  preferredEcosystems: ["flexible"],
+                })
+            : undefined
+        }
+        onClearRewardType={
+          filterAdvisory?.showClearRewardType ? clearRewardType : undefined
+        }
+        onAllowPortal={
+          filterAdvisory?.strategyUnlock === "portal"
+            ? allowPortalBookings
+            : undefined
+        }
+        onAllowTransferable={
+          filterAdvisory?.strategyUnlock === "transferable"
+            ? allowTransferablePoints
+            : undefined
+        }
+        onAllowAnyStrategy={
+          filterAdvisory?.strategyUnlock === "no_preference"
+            ? allowAnyStrategy
+            : undefined
+        }
+        onEditPrograms={
+          filterAdvisory?.showEditPrograms ? editLoyaltyPrograms : undefined
+        }
       />
     </div>
   );

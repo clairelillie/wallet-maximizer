@@ -76,11 +76,14 @@ function captureForDriver(
       return loungeCapture(behaviors.loungeVisits);
     case "hotelNights":
       return hotelNightsCapture(behaviors.hotelNights);
-    case "upscaleHotel":
-      return (
-        hotelNightsCapture(behaviors.hotelNights) *
-        travelCreditCapture(behaviors.upscaleHotelLikelihood)
-      );
+    case "upscaleHotel": {
+      // A missing answer is 0. Multiplying by undefined is NaN (`0 * undefined`),
+      // which showed up as $NaN/yr on credits like Hotel Collection.
+      const nights = hotelNightsCapture(behaviors.hotelNights);
+      const intent = travelCreditCapture(behaviors.upscaleHotelLikelihood);
+      if (!Number.isFinite(nights) || !Number.isFinite(intent)) return 0;
+      return nights * intent;
+    }
     case "travelCredit":
       return travelCreditCapture(behaviors.travelCreditLikelihood);
     case "trustedTraveler":
@@ -169,7 +172,9 @@ export function estimateCatalogBenefit(
   }
 
   const capture = captureForDriver(benefit.valuedBy, behaviors);
-  return Math.max(0, Math.min(cap, Math.round(basis * capture)));
+  const estimated = Math.round((basis ?? 0) * capture);
+  if (!Number.isFinite(estimated) || !Number.isFinite(cap)) return 0;
+  return Math.max(0, Math.min(cap, estimated));
 }
 
 function assessmentsFromCatalog(

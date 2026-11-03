@@ -191,11 +191,15 @@ export function activeLoyaltyPrograms(
   );
 }
 
-function formatLoyaltyList(programs: LoyaltyProgramSelection[]): string {
-  const labels = programs.map(loyaltyProgramLabel);
-  if (labels.length <= 1) return labels[0] ?? "your program";
+export function joinDisjunction(labels: string[]): string {
+  if (labels.length === 0) return "";
+  if (labels.length === 1) return labels[0];
   if (labels.length === 2) return `${labels[0]} or ${labels[1]}`;
   return `${labels.slice(0, -1).join(", ")}, or ${labels[labels.length - 1]}`;
+}
+
+function formatLoyaltyList(programs: LoyaltyProgramSelection[]): string {
+  return joinDisjunction(programs.map(loyaltyProgramLabel)) || "your program";
 }
 
 /** Expand rewardsStrategies into the set of concrete strategies allowed. */
@@ -500,6 +504,178 @@ export function matchesPointsStrategy(
     preferredLoyaltyPrograms,
     strategies
   );
+}
+
+type HardPreferenceCard = PointsStrategyCard & {
+  ecosystem: PreferredEcosystem | "unknown";
+};
+
+/**
+ * Issuer, reward type, and rewards strategy. Loyalty is a separate stack rule.
+ * Cash-back cards stay eligible beside a transfer card unless the user asked
+ * for points only.
+ */
+export function matchesNonLoyaltyHardPreferences(
+  card: HardPreferenceCard,
+  preferences: Pick<
+    UserPreferences,
+    "preferredEcosystems" | "rewardTypePreference" | "rewardsStrategies"
+  >
+): boolean {
+  if (
+    !matchesPreferredEcosystems(card.ecosystem, preferences.preferredEcosystems)
+  ) {
+    return false;
+  }
+  if (
+    !matchesRewardTypePreference(
+      card.rewardType,
+      preferences.rewardTypePreference
+    )
+  ) {
+    return false;
+  }
+  if (preferences.rewardTypePreference === "cashback") return true;
+  if (card.rewardType === "cashback") return true;
+  return matchesAllowedRewardsStrategies(
+    card,
+    preferences.rewardsStrategies ?? ["no_preference"]
+  );
+}
+
+/** Same gate the candidate pool uses on catalog cards. */
+export function matchesHardPreferences(
+  card: HardPreferenceCard,
+  preferences: Pick<
+    UserPreferences,
+    | "preferredEcosystems"
+    | "rewardTypePreference"
+    | "rewardsStrategies"
+    | "preferredLoyaltyPrograms"
+  >
+): boolean {
+  if (!matchesNonLoyaltyHardPreferences(card, preferences)) return false;
+  if (preferences.rewardTypePreference === "cashback") return true;
+  if (card.rewardType === "cashback") return true;
+  return matchesLoyaltyProgramConstraint(
+    card,
+    preferences.preferredLoyaltyPrograms,
+    preferences.rewardsStrategies
+  );
+}
+
+function loyaltyViewForUserCard(card: UserCreditCard): PointsStrategyCard & {
+  ecosystem: PreferredEcosystem | "unknown";
+} {
+  const catalog =
+    findCatalogCardById(card.catalogId) ?? findCatalogCardByName(card.name);
+  const ecosystem =
+    !card.ecosystem || card.ecosystem === "other"
+      ? (catalog?.ecosystem ?? "unknown")
+      : card.ecosystem;
+  return {
+    ecosystem,
+    rewardType: catalog?.rewardType ?? "unknown",
+    transferPartners: catalog?.transferPartners,
+    directEarnPrograms: catalog?.directEarnPrograms,
+    travelMultipliers: catalog?.travelMultipliers,
+  };
+}
+
+/**
+ * Held points cards with no path to the selected programs.
+ * Cash-back cards stay eligible beside a transfer card, so they are omitted.
+ */
+export function heldCardsBlockedFromLoyaltyPath(
+  cards: UserCreditCard[],
+  preferences: Pick<
+    UserPreferences,
+    "preferredLoyaltyPrograms" | "rewardsStrategies"
+  >
+): Array<{ name: string; reason: string }> {
+  const programs = preferences.preferredLoyaltyPrograms ?? [];
+  if (activeLoyaltyPrograms(programs).length === 0) return [];
+  const strategies = preferences.rewardsStrategies ?? ["no_preference"];
+  const blocked: Array<{ name: string; reason: string }> = [];
+
+  for (const card of cards) {
+    const name = card.name.trim();
+    if (!name) continue;
+    const view = loyaltyViewForUserCard(card);
+    if (view.rewardType === "cashback") continue;
+    if (matchesLoyaltyProgramConstraint(view, programs, strategies)) continue;
+    const reason =
+      describeCardLoyaltyPath(view, programs, strategies) ??
+      `Does not earn or transfer to ${formatLoyaltyList(activeLoyaltyPrograms(programs))}.`;
+    blocked.push({ name, reason });
+  }
+
+  return blocked;
+}
+
+/** True when adding portal would newly qualify at least one blocked held card. */
+export function portalWouldUnlockBlockedCard(
+  cards: UserCreditCard[],
+  preferences: Pick<
+    UserPreferences,
+    "preferredLoyaltyPrograms" | "rewardsStrategies"
+  >
+): boolean {
+  if (
+    allowedConcreteStrategies(preferences.rewardsStrategies).includes("portal")
+  ) {
+    return false;
+  }
+  const blocked = heldCardsBlockedFromLoyaltyPath(cards, preferences);
+  if (blocked.length === 0) return false;
+  const blockedNames = new Set(blocked.map((card) => card.name));
+  const programs = preferences.preferredLoyaltyPrograms ?? [];
+  const next = withPortalAllowed(preferences.rewardsStrategies);
+  return cards.some((card) => {
+    const name = card.name.trim();
+    if (!blockedNames.has(name)) return false;
+    return matchesLoyaltyProgramConstraint(
+      loyaltyViewForUserCard(card),
+      programs,
+      next
+    );
+  });
+}
+
+/**
+ * Add portal without dropping transferable.
+ * `"no_preference"` already allows portal, so it is left as-is.
+ */
+export function withPortalAllowed(
+  strategies: RewardsStrategy[] | undefined
+): RewardsStrategy[] {
+  const list: RewardsStrategy[] = strategies?.length
+    ? strategies
+    : ["no_preference"];
+  if (list.includes("no_preference")) return list;
+  const next: RewardsStrategy[] = list.filter(
+    (strategy): strategy is Exclude<RewardsStrategy, "no_preference"> =>
+      strategy !== "no_preference"
+  );
+  if (!next.includes("transferable")) next.unshift("transferable");
+  if (!next.includes("portal")) next.push("portal");
+  return next;
+}
+
+/** Add transferable without dropping portal. */
+export function withTransferableAllowed(
+  strategies: RewardsStrategy[] | undefined
+): RewardsStrategy[] {
+  const list: RewardsStrategy[] = strategies?.length
+    ? strategies
+    : ["no_preference"];
+  if (list.includes("no_preference")) return list;
+  const next: RewardsStrategy[] = list.filter(
+    (strategy): strategy is Exclude<RewardsStrategy, "no_preference"> =>
+      strategy !== "no_preference"
+  );
+  if (!next.includes("transferable")) next.unshift("transferable");
+  return next;
 }
 
 /** Whether travel earn should use portal multipliers for valuation. */

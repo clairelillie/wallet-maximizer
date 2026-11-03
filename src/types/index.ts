@@ -429,6 +429,49 @@ export interface ComplexityTradeoff {
   message: string;
 }
 
+/** Hard filters that can drop held cards and crown a different stack. */
+export type HardFilterKind =
+  | "ecosystem"
+  | "reward_type"
+  | "rewards_strategy"
+  | "loyalty";
+
+/**
+ * One active hard filter inside a combined tradeoff.
+ * labels are display names (Chase, Cash back, portal redemptions, American Airlines).
+ */
+export interface HardFilterClause {
+  kind: HardFilterKind;
+  labels: string[];
+  /** Loyalty sentences say transferable miles unless portal is the only path. */
+  loyaltyVia?: "transferable" | "portal";
+}
+
+/**
+ * What the active hard filters cost when the best stack that satisfies all of
+ * them is materially behind the best stack from cards the user already holds.
+ * One object covers every filter that created the gap.
+ * annualCost is positive: the kept stack is worth that much more per year.
+ * rewardsDelta and feesDelta compare the compliant stack minus the kept stack.
+ */
+export interface ConstraintTradeoff {
+  clauses: HardFilterClause[];
+  /** Loyalty program names when a loyalty clause is part of the priced rule. */
+  programLabels: string[];
+  excludedCards: { name: string; reason: string }[];
+  compliantStack: {
+    cardNames: string[];
+    netAnnualPosition: number;
+    /** Rewards + benefits, same basis as OptimizationResult.totalEstimatedValue. */
+    totalEstimatedValue: number;
+    rewardsSubtotal: number;
+    annualFees: number;
+  };
+  annualCost: number;
+  rewardsDelta: number;
+  feesDelta: number;
+}
+
 export interface OptimizationResult {
   stack: StackCard[];
   cheatSheet: CategoryAssignment[];
@@ -451,6 +494,11 @@ export interface OptimizationResult {
   benefitsSubtotal: number;
   feesSubtotal: number;
   alternativeStacks: AlternativeStackSummary[];
+  /**
+   * Set when active hard filters make the compliant stack materially worse
+   * than the best stack from cards the user already holds.
+   */
+  constraintTradeoff?: ConstraintTradeoff;
 }
 
 export interface OptimizerInput {

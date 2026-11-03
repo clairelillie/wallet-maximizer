@@ -142,7 +142,16 @@ export function optimizeStackSize(
   pool: NormalizedCard[],
   input: OptimizerInput,
   targetSize: number,
-  overrides: BenefitOverrides = {}
+  overrides: BenefitOverrides = {},
+  options?: {
+    ignoreLoyaltyCoverage?: boolean;
+    /**
+     * Must-keep cards that were filtered out of the pool stay out.
+     * Used for the preference-compliant stack, which cannot force a card
+     * the hard filters disqualified.
+     */
+    skipMissingKeeps?: boolean;
+  }
 ): OptimizedStackPick | null {
   const keeps = keepCardsFromInput(input.cards);
   const keepNames = new Set(keeps.map((k) => k.name.toLowerCase()));
@@ -157,8 +166,11 @@ export function optimizeStackSize(
     keepNames.has(c.name.toLowerCase())
   );
   // If a keep isn't in pool (shouldn't happen), fall back to normalized keeps.
-  const fixed =
-    keepFromPool.length > 0
+  // The compliant pass sets skipMissingKeeps so a disqualified must-keep
+  // cannot re-enter a stack that is supposed to satisfy the filters.
+  const fixed = options?.skipMissingKeeps
+    ? keepFromPool
+    : keepFromPool.length > 0
       ? keepFromPool
       : keeps.map((k) => ({ ...k, isFromUserPortfolio: true }));
 
@@ -186,7 +198,10 @@ export function optimizeStackSize(
   );
   // Role-aware: not every card must hit AA/Delta/etc., but some card that
   // actually earns points should, when the pool has an eligible earner.
+  // Held-card re-optimization ignores this skip so a wallet with no
+  // transfer path can still win on dollars.
   const loyaltyRequired =
+    !options?.ignoreLoyaltyCoverage &&
     preferredPrograms.length > 0 &&
     pool.some((c) =>
       reachesPreferredPrograms(c, input.preferences.preferredLoyaltyPrograms)

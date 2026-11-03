@@ -1,4 +1,14 @@
-import { CATEGORY_LABELS, usesPortalRates } from "./constants";
+import {
+  CATEGORY_LABELS,
+  usesPortalRates,
+} from "./constants";
+import {
+  blockLines,
+  hardFilterClauses,
+  heldCardsBlockedByHardFilters,
+  passesCompliantPool,
+  pricedHardFilterBlocks,
+} from "./hard-filters";
 import {
   annualRewardValue,
   getEffectiveMultiplier,
@@ -15,6 +25,7 @@ import { calculateStackValue, calculateIncrementalValue } from "./engine/stack-v
 import type {
   CardFeeVerdict,
   ComplexityTradeoff,
+  ConstraintTradeoff,
   MaxCards,
   NormalizedCard,
   OptimizationResult,
@@ -73,6 +84,39 @@ export function optimizeStack(input: OptimizerInput): OptimizationResult {
   );
   const currentNetPosition = currentValuation.stackValue;
   let netGainVsCurrent = Math.round(netAnnualPosition - currentNetPosition);
+
+  // Hard filters can crown a stack that merely satisfies them. When that
+  // stack is materially worse, keep the best held subset (must-keep and
+  // maxCards still apply) and price the compliant stack as one alternative.
+  if (held.length > 0 && primary) {
+    const keptPick = optimizeStackSize(held, input, primarySize, overrides, {
+      ignoreLoyaltyCoverage: true,
+    });
+    const compliantPool = pool.filter((card) =>
+      passesCompliantPool(card, input.preferences)
+    );
+    const compliant = optimizeStackSize(
+      compliantPool,
+      input,
+      primarySize,
+      overrides,
+      { skipMissingKeeps: true }
+    );
+    const tradeoff =
+      keptPick && compliant
+        ? constraintTradeoffFor(input, keptPick, compliant)
+        : undefined;
+    if (tradeoff && keptPick) {
+      return finalizeFromPick(
+        keptPick,
+        input,
+        pool,
+        overrides,
+        currentValuation,
+        tradeoff
+      );
+    }
+  }
 
   // Never recommend a stack worse than the current wallet when the wallet fits
   // maxCards and every held card is still eligible in the candidate pool.
@@ -174,7 +218,8 @@ function finalizeFromPick(
   input: OptimizerInput,
   pool: NormalizedCard[],
   overrides: OptimizerInput["benefitOverrides"],
-  currentValuation: ReturnType<typeof calculateStackValue>
+  currentValuation: ReturnType<typeof calculateStackValue>,
+  constraintTradeoff?: ConstraintTradeoff
 ): OptimizationResult {
   const valuation = pick.valuation;
   const stackCards = pick.stackCards;
@@ -207,13 +252,18 @@ function finalizeFromPick(
       )
     );
 
-  const alternativeStacks = buildAlternativeSummaries(
-    pool,
-    input,
+  const alternativeStacks = stampPrimaryAlternative(
+    buildAlternativeSummaries(
+      pool,
+      input,
+      primarySize,
+      netAnnualPosition,
+      currentNetPosition,
+      overrides ?? {}
+    ),
+    pick,
     primarySize,
-    netAnnualPosition,
-    currentNetPosition,
-    overrides ?? {}
+    currentNetPosition
   );
 
   return {
@@ -243,6 +293,117 @@ function finalizeFromPick(
     benefitsSubtotal,
     feesSubtotal,
     alternativeStacks,
+    constraintTradeoff,
+  };
+}
+
+function constraintTradeoffFor(
+  input: OptimizerInput,
+  kept: NonNullable<ReturnType<typeof optimizeStackSize>>,
+  compliant: NonNullable<ReturnType<typeof optimizeStackSize>>
+): ConstraintTradeoff | undefined {
+  const heldCards = input.cards.filter((card) => card.name.trim());
+  if (heldCards.length === 0) return undefined;
+
+  const held = heldCards.map((card) => normalizeUserCard(card));
+  const blocks = heldCardsBlockedByHardFilters(heldCards, input.preferences);
+  const priced = pricedHardFilterBlocks(blocks, input.preferences, held);
+  if (priced.length === 0) return undefined;
+
+  const annualCost = Math.round(
+    kept.valuation.stackValue - compliant.valuation.stackValue
+  );
+  if (annualCost <= NEAR_TIE_THRESHOLD) return undefined;
+
+  const clauses = hardFilterClauses(priced, input.preferences);
+  if (clauses.length === 0) return undefined;
+
+  const keptTotal = Math.round(
+    kept.valuation.rewardsValue + kept.valuation.benefitsValue
+  );
+  const compliantTotal = Math.round(
+    compliant.valuation.rewardsValue + compliant.valuation.benefitsValue
+  );
+  const loyalty = clauses.find((clause) => clause.kind === "loyalty");
+  return {
+    clauses,
+    programLabels: loyalty?.labels ?? [],
+    excludedCards: blockLines(priced),
+    compliantStack: {
+      cardNames: compliant.cards.map((card) => card.name),
+      netAnnualPosition: compliant.valuation.stackValue,
+      totalEstimatedValue: compliantTotal,
+      rewardsSubtotal: compliant.valuation.rewardsValue,
+      annualFees: compliant.valuation.annualFees,
+    },
+    annualCost,
+    rewardsDelta: compliantTotal - keptTotal,
+    feesDelta: Math.round(
+      compliant.valuation.annualFees - kept.valuation.annualFees
+    ),
+  };
+}
+
+function stampPrimaryAlternative(
+  alternatives: OptimizationResult["alternativeStacks"],
+  pick: NonNullable<ReturnType<typeof optimizeStackSize>>,
+  primarySize: MaxCards,
+  currentNetPosition: number
+): OptimizationResult["alternativeStacks"] {
+  const rewardsSubtotal = pick.valuation.rewardsValue;
+  const benefitsSubtotal = pick.valuation.benefitsValue;
+  const feesSubtotal = pick.valuation.annualFees;
+  const netAnnualPosition = pick.valuation.stackValue;
+  const totalEstimatedValue = Math.round(rewardsSubtotal + benefitsSubtotal);
+  const cheatSheet = pick.valuation.assignments.filter(
+    (row) => row.monthlySpend > 0 || row.category === "other"
+  );
+
+  return alternatives.map((alt) => {
+    if (alt.targetSize !== primarySize) {
+      return {
+        ...alt,
+        isPrimary: false,
+        deltaVsPrimary: Math.round(alt.estimatedAnnualValue - netAnnualPosition),
+      };
+    }
+    return {
+      ...alt,
+      isPrimary: true,
+      cardCount: pick.cards.length,
+      cardNames: pick.cards.map((card) => card.name),
+      estimatedAnnualValue: netAnnualPosition,
+      label: `Recommended (up to ${primarySize})`,
+      deltaVsPrimary: 0,
+      stack: pick.stackCards,
+      cheatSheet,
+      benefits: pick.valuation.benefits,
+      rewardsSubtotal,
+      benefitsSubtotal,
+      feesSubtotal,
+      totalEstimatedValue,
+      netGainVsCurrent: Math.round(netAnnualPosition - currentNetPosition),
+    };
+  });
+}
+
+function refreshedConstraintTradeoff(
+  previous: OptimizationResult,
+  netAnnualPosition: number,
+  totalEstimatedValue: number,
+  feesSubtotal: number
+): ConstraintTradeoff | undefined {
+  const tradeoff = previous.constraintTradeoff;
+  if (!tradeoff) return undefined;
+  const annualCost = Math.round(
+    netAnnualPosition - tradeoff.compliantStack.netAnnualPosition
+  );
+  if (annualCost <= NEAR_TIE_THRESHOLD) return undefined;
+  return {
+    ...tradeoff,
+    annualCost,
+    rewardsDelta: tradeoff.compliantStack.totalEstimatedValue - totalEstimatedValue,
+    feesDelta: Math.round(tradeoff.compliantStack.annualFees - feesSubtotal),
   };
 }
 
@@ -380,6 +541,12 @@ export function revalueOptimizationResult(
       alternativeStacks,
       input.preferences.maxCards,
       netAnnualPosition
+    ),
+    constraintTradeoff: refreshedConstraintTradeoff(
+      previous,
+      netAnnualPosition,
+      totalEstimatedValue,
+      feesSubtotal
     ),
   };
 }

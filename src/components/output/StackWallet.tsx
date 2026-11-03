@@ -45,6 +45,8 @@ interface StackWalletProps {
   allSaved: boolean;
   /** Drop cards the user no longer wants after a benefit edit. */
   onRemoveCards: (cardIds: string[]) => void;
+  /** Replaces the caption under the wallet when the kept cards are the recommendation. */
+  stackLabel?: string;
 }
 
 type CardFace = {
@@ -236,7 +238,7 @@ function BenefitValueRow({
 }: {
   benefit: BenefitAssessment;
   loungeTipDismissed: boolean;
-  onLoungeFocus: () => void;
+  onLoungeFocus: (benefitId: string) => void;
   onBenefitOverride: (benefitId: string, value: number) => void;
 }) {
   const [draft, setDraft] = useState<{ id: string; text: string } | null>(
@@ -287,7 +289,7 @@ function BenefitValueRow({
                       benefit.stackGroup === "priorityPass") &&
                     !loungeTipDismissed
                   ) {
-                    onLoungeFocus();
+                    onLoungeFocus(benefit.id);
                   }
                 }}
                 onChange={(e) => {
@@ -514,11 +516,13 @@ function BifoldWallet({
   selectedId,
   savedByCardId,
   onSelect,
+  stackLabel = "Your recommended stack",
 }: {
   stack: StackCard[];
   selectedId: string;
   savedByCardId: Record<string, SavedCardValue>;
   onSelect: (id: string) => void;
+  stackLabel?: string;
 }) {
   return (
     <div className="mx-auto w-full max-w-lg select-none">
@@ -566,7 +570,7 @@ function BifoldWallet({
         </div>
 
         <p className="mt-2 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          Your recommended stack
+          {stackLabel}
         </p>
         <p className="mt-1 text-center text-xs text-muted-foreground">
           Tap a card to pull it fully out. The others stay in their slots.
@@ -588,13 +592,14 @@ export function StackWallet({
   onCompare,
   allSaved,
   onRemoveCards,
+  stackLabel,
 }: StackWalletProps) {
   const firstId = stack[0]?.id ?? "";
   const [selectedId, setSelectedId] = useState(firstId);
   const [loungeTipOpen, setLoungeTipOpen] = useState(false);
-  const [loungeTipDismissedIds, setLoungeTipDismissedIds] = useState<
-    Set<string>
-  >(() => new Set());
+  const [loungeTipVersion, setLoungeTipVersion] = useState(0);
+  const loungeTipBenefitIdRef = useRef<string | null>(null);
+  const loungeTipDismissedRef = useRef<Set<string>>(new Set());
   const [keepAlerts, setKeepAlerts] = useState<CardKeepAlert[]>([]);
   const liveRef = useRef({ stack, benefits, cheatSheet });
   liveRef.current = { stack, benefits, cheatSheet };
@@ -611,10 +616,26 @@ export function StackWallet({
     setKeepAlerts([]);
   }, [selectionKey, firstId]);
 
+  const openLoungeTip = (benefitId: string) => {
+    if (loungeTipDismissedRef.current.has(benefitId)) return;
+    loungeTipBenefitIdRef.current = benefitId;
+    setLoungeTipOpen(true);
+  };
+
+  const dismissLoungeTip = () => {
+    const benefitId = loungeTipBenefitIdRef.current;
+    if (benefitId) {
+      loungeTipDismissedRef.current.add(benefitId);
+    }
+    loungeTipBenefitIdRef.current = null;
+    setLoungeTipOpen(false);
+    setLoungeTipVersion((version) => version + 1);
+  };
+
   useEffect(() => {
     if (!loungeTipOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setLoungeTipOpen(false);
+      if (event.key === "Escape") dismissLoungeTip();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -658,18 +679,10 @@ export function StackWallet({
     return benefits.filter((b) => b.cardName === selected.name);
   }, [benefits, selected]);
 
+  const loungeTipDismissedIds = loungeTipDismissedRef.current;
+  void loungeTipVersion;
   const savedCount = stack.filter((c) => savedByCardId[c.id]).length;
   const isSelectedSaved = selected ? Boolean(savedByCardId[selected.id]) : false;
-
-  const dismissLoungeTip = () => {
-    const loungeBenefit = cardBenefits.find(
-      (b) => b.stackGroup === "lounge" || b.stackGroup === "priorityPass"
-    );
-    if (loungeBenefit) {
-      setLoungeTipDismissedIds((prev) => new Set(prev).add(loungeBenefit.id));
-    }
-    setLoungeTipOpen(false);
-  };
 
   if (stack.length === 0) return null;
 
@@ -745,6 +758,7 @@ export function StackWallet({
         selectedId={selected?.id ?? ""}
         savedByCardId={savedByCardId}
         onSelect={setSelectedId}
+        stackLabel={stackLabel}
       />
 
       {selected && (
@@ -843,7 +857,7 @@ export function StackWallet({
                         key={b.id}
                         benefit={b}
                         loungeTipDismissed={loungeTipDismissedIds.has(b.id)}
-                        onLoungeFocus={() => setLoungeTipOpen(true)}
+                        onLoungeFocus={openLoungeTip}
                         onBenefitOverride={onBenefitOverride}
                       />
                     ))}
@@ -867,7 +881,7 @@ export function StackWallet({
                               key={b.id}
                               benefit={b}
                               loungeTipDismissed={loungeTipDismissedIds.has(b.id)}
-                              onLoungeFocus={() => setLoungeTipOpen(true)}
+                              onLoungeFocus={openLoungeTip}
                               onBenefitOverride={onBenefitOverride}
                             />
                           ))}
@@ -891,7 +905,7 @@ export function StackWallet({
                           key={b.id}
                           benefit={b}
                           loungeTipDismissed={loungeTipDismissedIds.has(b.id)}
-                          onLoungeFocus={() => setLoungeTipOpen(true)}
+                          onLoungeFocus={openLoungeTip}
                           onBenefitOverride={onBenefitOverride}
                         />
                       ))}

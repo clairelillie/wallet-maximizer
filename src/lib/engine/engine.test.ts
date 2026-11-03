@@ -423,6 +423,62 @@ describe("benefit personalization", () => {
       )?.effectiveValue
     ).toBe(0);
   });
+
+  it("values Hotel Collection in dollars when Amex Gold is recommended", () => {
+    const behaviors: PerkBehaviorAnswers = {
+      ...quietHabits,
+      rideshareMonthly: "51-100",
+      foodDeliveryMonthly: "51-100",
+      resyMonthly: "51-100",
+      hotelNights: "6-10",
+      upscaleHotelLikelihood: "yes",
+    };
+    const input = baseInput({
+      cards: [userCard("Capital One Savor", { id: "savor" })],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 3,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "points",
+        perkBehaviors: behaviors,
+      },
+    });
+    const result = optimizeStack(input);
+    const recommended = result.stack.find((card) => card.name === "Amex Gold");
+    expect(recommended?.isNewRecommendation).toBe(true);
+
+    const view =
+      result.alternativeStacks.find((alt) => alt.isPrimary) ?? result;
+    const hotel = view.benefits.find(
+      (line) =>
+        line.cardName === "Amex Gold" && line.id.startsWith("hotel-collection")
+    );
+    expect(hotel?.effectiveValue).toBe(55);
+    expect(Number.isFinite(hotel?.effectiveValue)).toBe(true);
+
+    // A recommended Gold can be scored before the portal-stay answer exists.
+    const unanswered = optimizeStack({
+      ...input,
+      preferences: {
+        ...input.preferences,
+        perkBehaviors: {
+          ...behaviors,
+          upscaleHotelLikelihood: undefined,
+        } as PerkBehaviorAnswers,
+      },
+    });
+    const unansweredView =
+      unanswered.alternativeStacks.find((alt) => alt.isPrimary) ?? unanswered;
+    const unansweredHotel = unansweredView.benefits.find(
+      (line) =>
+        line.cardName === "Amex Gold" && line.id.startsWith("hotel-collection")
+    );
+    expect(unanswered.stack.some((card) => card.name === "Amex Gold")).toBe(
+      true
+    );
+    expect(unansweredHotel?.effectiveValue).toBe(0);
+    expect(Number.isFinite(unansweredHotel?.effectiveValue)).toBe(true);
+  });
 });
 
 describe("stack-value comparator", () => {
@@ -1388,5 +1444,317 @@ describe("travel spend subcategories", () => {
         willingToUseTravelPortal: false,
       })
     ).toBe(2);
+  });
+});
+
+describe("loyalty constraint tradeoff", () => {
+  const constrainedSpend: MonthlySpending = {
+    ...spending,
+    dining: 900,
+    gas: 40,
+  };
+
+  function americanTransferInput(
+    cards: UserCreditCard[],
+    maxCards: 1 | 2 | 4 = 2
+  ): OptimizerInput {
+    return baseInput({
+      cards,
+      spending: constrainedSpend,
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "no_preference",
+        preferredLoyaltyPrograms: ["american"],
+        rewardsStrategies: ["transferable"],
+        perkBehaviors: {
+          ...quietHabits,
+          travelCreditLikelihood: "yes",
+        },
+      },
+    });
+  }
+
+  it("keeps Venture X and Savor when an American transfer stack is materially worse", () => {
+    const input = americanTransferInput([
+      userCard("Capital One Venture X", { id: "vx" }),
+      userCard("Capital One Savor", { id: "savor" }),
+    ]);
+    const result = optimizeStack(input);
+    const heldNames = ["Capital One Savor", "Capital One Venture X"];
+
+    expect(result.stack.map((card) => card.name).sort()).toEqual(heldNames);
+    expect(
+      result.alternativeStacks.find((alt) => alt.isPrimary)?.cardNames.sort()
+    ).toEqual(heldNames);
+    expect(result.netAnnualPosition).toBeGreaterThanOrEqual(
+      result.currentNetPosition - NEAR_TIE_THRESHOLD
+    );
+
+    const tradeoff = result.constraintTradeoff;
+    expect(tradeoff).toBeDefined();
+    expect(tradeoff!.annualCost).toBeGreaterThan(NEAR_TIE_THRESHOLD);
+    expect(tradeoff!.programLabels).toEqual(["American Airlines"]);
+    expect(tradeoff!.clauses).toEqual([
+      expect.objectContaining({
+        kind: "loyalty",
+        labels: ["American Airlines"],
+        loyaltyVia: "transferable",
+      }),
+    ]);
+    expect(
+      tradeoff!.compliantStack.cardNames.some((name) => {
+        const catalog = CARD_CATALOG.find((card) => card.name === name);
+        return (
+          catalog?.transferPartners?.includes("american") ||
+          catalog?.directEarnPrograms?.includes("american")
+        );
+      })
+    ).toBe(true);
+
+    const vx = CARD_CATALOG.find((card) => card.name === "Capital One Venture X")!;
+    const reason = describeCardLoyaltyPath(
+      vx,
+      ["american"],
+      ["transferable"]
+    );
+    expect(tradeoff!.excludedCards).toEqual(
+      expect.arrayContaining([
+        { name: "Capital One Venture X", reason },
+      ])
+    );
+    expect(
+      tradeoff!.excludedCards.some((card) => card.name.includes("Savor"))
+    ).toBe(false);
+  });
+
+  it("uses the best held subset when the wallet is larger than maxCards", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One Venture X", { id: "vx" }),
+        userCard("Capital One Savor", { id: "savor" }),
+      ],
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 1,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "points",
+        preferredLoyaltyPrograms: ["american"],
+        rewardsStrategies: ["transferable"],
+        perkBehaviors: {
+          ...quietHabits,
+          loungeVisits: "3-5",
+          travelCreditLikelihood: "yes",
+        },
+      },
+    });
+    const result = optimizeStack(input);
+    expect(result.stack).toHaveLength(1);
+    expect(result.stack[0]?.name).toBe("Capital One Venture X");
+    expect(
+      result.alternativeStacks.find((alt) => alt.isPrimary)?.cardNames
+    ).toEqual(["Capital One Venture X"]);
+    expect(result.constraintTradeoff?.annualCost).toBeGreaterThan(
+      NEAR_TIE_THRESHOLD
+    );
+    expect(
+      result.constraintTradeoff?.compliantStack.cardNames.some((name) => {
+        const catalog = CARD_CATALOG.find((card) => card.name === name);
+        return catalog?.transferPartners?.includes("american");
+      })
+    ).toBe(true);
+  });
+
+  it("does not price the constraint when the wallet already transfers to American", () => {
+    const input = americanTransferInput([
+      userCard("Capital One Venture X", { id: "vx" }),
+      userCard("Citi Strata Premier", { id: "citi" }),
+    ]);
+    const result = optimizeStack(input);
+    expect(result.constraintTradeoff).toBeUndefined();
+  });
+
+  it("keeps Capital One cards when a Chase-only stack is materially worse", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One Venture X", { id: "vx" }),
+        userCard("Capital One Savor", { id: "savor" }),
+      ],
+      spending: constrainedSpend,
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["chase"],
+        rewardTypePreference: "no_preference",
+        rewardsStrategies: ["no_preference"],
+        preferredLoyaltyPrograms: [],
+        perkBehaviors: {
+          ...quietHabits,
+          travelCreditLikelihood: "yes",
+        },
+      },
+    });
+    const result = optimizeStack(input);
+    const heldNames = ["Capital One Savor", "Capital One Venture X"];
+
+    expect(result.stack.map((card) => card.name).sort()).toEqual(heldNames);
+    expect(
+      result.alternativeStacks.find((alt) => alt.isPrimary)?.cardNames.sort()
+    ).toEqual(heldNames);
+
+    const tradeoff = result.constraintTradeoff;
+    expect(tradeoff).toBeDefined();
+    expect(tradeoff!.annualCost).toBeGreaterThan(NEAR_TIE_THRESHOLD);
+    expect(tradeoff!.clauses).toEqual([
+      expect.objectContaining({ kind: "ecosystem", labels: ["Chase"] }),
+    ]);
+    expect(tradeoff!.programLabels).toEqual([]);
+    expect(tradeoff!.excludedCards.map((card) => card.name).sort()).toEqual(
+      heldNames
+    );
+    expect(
+      tradeoff!.excludedCards.some((card) => card.reason.includes("Capital One"))
+    ).toBe(true);
+    expect(
+      tradeoff!.excludedCards.some((card) => card.reason.includes("Chase"))
+    ).toBe(true);
+    expect(
+      tradeoff!.compliantStack.cardNames.every((name) => {
+        const catalog = CARD_CATALOG.find((card) => card.name === name);
+        return catalog?.ecosystem === "chase";
+      })
+    ).toBe(true);
+  });
+
+  it("keeps held points cards when cash back only is materially worse", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One Venture X", { id: "vx" }),
+        userCard("Chase Sapphire Preferred", { id: "csp" }),
+      ],
+      spending: constrainedSpend,
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "cashback",
+        rewardsStrategies: ["no_preference"],
+        preferredLoyaltyPrograms: [],
+        perkBehaviors: {
+          ...quietHabits,
+          travelCreditLikelihood: "yes",
+        },
+      },
+    });
+    const result = optimizeStack(input);
+    const heldNames = ["Capital One Venture X", "Chase Sapphire Preferred"];
+
+    expect(result.stack.map((card) => card.name).sort()).toEqual(heldNames);
+    const tradeoff = result.constraintTradeoff;
+    expect(tradeoff).toBeDefined();
+    expect(tradeoff!.annualCost).toBeGreaterThan(NEAR_TIE_THRESHOLD);
+    expect(tradeoff!.clauses).toEqual([
+      expect.objectContaining({
+        kind: "reward_type",
+        labels: ["Cash back"],
+      }),
+    ]);
+    expect(tradeoff!.excludedCards.map((card) => card.name).sort()).toEqual(
+      heldNames
+    );
+    expect(
+      tradeoff!.compliantStack.cardNames.every((name) => {
+        const catalog = CARD_CATALOG.find((card) => card.name === name);
+        return catalog?.rewardType === "cashback";
+      })
+    ).toBe(true);
+  });
+
+  it("keeps a points card with no transfer partners when transferable points are required", () => {
+    const input = baseInput({
+      cards: [
+        {
+          id: "store",
+          catalogId: null,
+          ecosystem: "chase",
+          name: "Store points card",
+          isCustom: true,
+          annualFee: 0,
+          baseMultiplier: 5,
+          multipliers: { dining: 5, grocery: 5, other: 5 },
+          keepThisCard: false,
+        },
+      ],
+      spending: constrainedSpend,
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "points",
+        rewardsStrategies: ["transferable"],
+        preferredLoyaltyPrograms: [],
+        perkBehaviors: quietHabits,
+      },
+    });
+    const result = optimizeStack(input);
+    expect(result.stack.map((card) => card.name)).toEqual(["Store points card"]);
+    const tradeoff = result.constraintTradeoff;
+    expect(tradeoff).toBeDefined();
+    expect(tradeoff!.annualCost).toBeGreaterThan(NEAR_TIE_THRESHOLD);
+    expect(tradeoff!.clauses).toEqual([
+      expect.objectContaining({
+        kind: "rewards_strategy",
+        labels: ["transferable points"],
+      }),
+    ]);
+    expect(tradeoff!.excludedCards.map((card) => card.name)).toEqual([
+      "Store points card",
+    ]);
+    expect(
+      tradeoff!.compliantStack.cardNames.includes("Store points card")
+    ).toBe(false);
+  });
+
+  it("does not price an ecosystem limit the wallet already satisfies", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One Venture X", { id: "vx" }),
+        userCard("Capital One Savor", { id: "savor" }),
+      ],
+      spending: constrainedSpend,
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["capital-one"],
+        rewardTypePreference: "no_preference",
+        rewardsStrategies: ["no_preference"],
+        perkBehaviors: {
+          ...quietHabits,
+          travelCreditLikelihood: "yes",
+        },
+      },
+    });
+    expect(optimizeStack(input).constraintTradeoff).toBeUndefined();
+  });
+
+  it("does not price cash back when the wallet is already cash back", () => {
+    const input = baseInput({
+      cards: [
+        userCard("Capital One Savor", { id: "savor" }),
+        userCard("Citi Double Cash", { id: "cdc" }),
+      ],
+      spending: constrainedSpend,
+      preferences: {
+        ...DEFAULT_PREFERENCES,
+        maxCards: 2,
+        preferredEcosystems: ["flexible"],
+        rewardTypePreference: "cashback",
+        rewardsStrategies: ["no_preference"],
+        preferredLoyaltyPrograms: [],
+        perkBehaviors: quietHabits,
+      },
+    });
+    expect(optimizeStack(input).constraintTradeoff).toBeUndefined();
   });
 });

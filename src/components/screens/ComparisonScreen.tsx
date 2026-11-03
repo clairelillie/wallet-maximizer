@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ConstraintTradeoffNote } from "@/components/output/ConstraintTradeoffNote";
 import { Button } from "@/components/ui/button";
 import { formatSignedMoney } from "@/lib/card-value";
 import {
@@ -15,6 +16,7 @@ import type {
   CategoryAssignment,
   OptimizationResult,
   PerkCreditLine,
+  ConstraintTradeoff,
   RewardTypePreference,
   SavedCardValue,
   SpendCategory,
@@ -205,9 +207,11 @@ function buildBenefitRevealRows(
 function BenefitsRevealBox({
   rows,
   morphed,
+  keepingCurrent = false,
 }: {
   rows: BenefitRevealRow[];
   morphed: boolean;
+  keepingCurrent?: boolean;
 }) {
   const visibleRows = morphed
     ? rows
@@ -241,12 +245,16 @@ function BenefitsRevealBox({
       ) : null}
       <div className="border-b border-border/60 bg-muted/25 px-4 py-3">
         <h3 className="text-base font-semibold tracking-tight">
-          {morphed ? "Your upgraded benefits" : "Your current benefits"}
+          {morphed && !keepingCurrent
+            ? "Your upgraded benefits"
+            : "Your current benefits"}
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          {morphed
-            ? "Removed benefits are crossed out in red. New benefits from your recommended stack show in green with the values you saved."
-            : "Statement credits and dollar benefits on the cards you hold today."}
+          {morphed && keepingCurrent
+            ? "These are the credits on the cards you're keeping."
+            : morphed
+              ? "Removed benefits are crossed out in red. New benefits from your recommended stack show in green with the values you saved."
+              : "Statement credits and dollar benefits on the cards you hold today."}
         </p>
       </div>
       {visibleRows.length === 0 ? (
@@ -448,12 +456,14 @@ function OverviewRevealBox({
   morphed,
   rewardTypePreference,
   onContinue,
+  constraintTradeoff,
 }: {
   current: OverviewTotals;
   recommended: OverviewTotals;
   morphed: boolean;
   rewardTypePreference: RewardTypePreference;
   onContinue?: () => void;
+  constraintTradeoff?: ConstraintTradeoff;
 }) {
   const pointsMode = showPointsAsPrimary(rewardTypePreference);
   const currentRewardsDisplay = formatRewardsTotal(
@@ -476,7 +486,9 @@ function OverviewRevealBox({
         <RevealSwoosh active={morphed} />
         <div className="border-b border-border/60 bg-muted/25 px-4 py-3">
           <h3 className="text-base font-semibold tracking-tight">
-            {morphed ? "Your upgraded overview" : "Your current overview"}
+            {morphed && !constraintTradeoff
+              ? "Your upgraded overview"
+              : "Your current overview"}
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
             Rewards + benefits − annual fees
@@ -572,16 +584,20 @@ function OverviewRevealBox({
 
       {morphed ? (
         <div
-          className={`animate-in fade-in zoom-in-95 slide-in-from-bottom-3 rounded-[2rem] border-2 px-6 py-7 text-center shadow-lg duration-700 fill-mode-both sm:px-10 sm:py-9 ${
-            netGain > 0
-              ? "border-gain/40 bg-gain-soft dark:border-gain/50 dark:bg-gain-soft/40"
+          className={`animate-in fade-in zoom-in-95 slide-in-from-bottom-3 rounded-[2rem] border-2 px-6 py-7 shadow-lg duration-700 fill-mode-both sm:px-10 sm:py-9 ${
+            constraintTradeoff
+              ? "border-amber-300/80 bg-amber-50 text-left dark:border-amber-700/50 dark:bg-amber-950/40"
+              : netGain > 0
+              ? "border-gain/40 bg-gain-soft text-center dark:border-gain/50 dark:bg-gain-soft/40"
               : netGain < 0
-                ? "border-amber-300/80 bg-amber-50 dark:border-amber-700/50 dark:bg-amber-950/40"
-                : "border-border bg-muted/40"
+                ? "border-amber-300/80 bg-amber-50 text-center dark:border-amber-700/50 dark:bg-amber-950/40"
+                : "border-border bg-muted/40 text-center"
           }`}
           style={{ animationDelay: "320ms" }}
         >
-          {netGain > 0 ? (
+          {constraintTradeoff ? (
+            <ConstraintTradeoffNote tradeoff={constraintTradeoff} />
+          ) : netGain > 0 ? (
             <>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gain sm:text-base">
                 With the recommended stack
@@ -673,6 +689,7 @@ function SpendRevealTable({
   phase,
   showNextArrow,
   rewardTypePreference,
+  constraintTradeoff,
   onNext,
   onBack,
   onBackToStack,
@@ -687,6 +704,7 @@ function SpendRevealTable({
   phase: "current" | "morph";
   showNextArrow: boolean;
   rewardTypePreference: RewardTypePreference;
+  constraintTradeoff?: ConstraintTradeoff;
   onNext: () => void;
   onBack: () => void;
   onBackToStack: () => void;
@@ -705,32 +723,45 @@ function SpendRevealTable({
     rewardTypePreference
   );
   const totalImproved = morphed && recommendedTotal > currentTotal;
+  const keepingCurrent = Boolean(constraintTradeoff);
 
   const title =
-    step === "earnings"
-      ? morphed
-        ? "Your upgraded earn rates"
-        : "Your current spend"
-      : step === "benefits"
+    keepingCurrent && morphed
+      ? step === "earnings"
+        ? "Your current earn rates"
+        : step === "benefits"
+          ? "Your current benefits"
+          : "Your current overview"
+      : step === "earnings"
         ? morphed
-          ? "Your upgraded benefits"
-          : "Your current benefits"
-        : morphed
-          ? "Your upgraded overview"
-          : "Your current overview";
+          ? "Your upgraded earn rates"
+          : "Your current spend"
+        : step === "benefits"
+          ? morphed
+            ? "Your upgraded benefits"
+            : "Your current benefits"
+          : morphed
+            ? "Your upgraded overview"
+            : "Your current overview";
 
   const subtitle =
-    step === "earnings"
-      ? morphed
-        ? "Crossed-out values are what you earn today. Green values are the recommended stack for the same spend."
-        : "Category by category — how your current wallet covers your monthly spend."
-      : step === "benefits"
+    keepingCurrent && morphed
+      ? step === "earnings"
+        ? "These are the rates on the cards you're keeping."
+        : step === "benefits"
+          ? "These are the credits on the cards you're keeping."
+          : "Rewards + benefits − annual fees for the cards you're keeping."
+      : step === "earnings"
         ? morphed
-          ? "Removed benefits are crossed out in red. New benefits show in green with the values you saved."
-          : "Statement credits and dollar benefits on the cards you hold today."
-        : morphed
-          ? "Crossed-out figures are your current wallet. Green shows where the recommended stack improves the math."
-          : "Rewards + benefits − annual fees for the cards you hold today.";
+          ? "Crossed-out values are what you earn today. Green values are the recommended stack for the same spend."
+          : "Category by category — how your current wallet covers your monthly spend."
+        : step === "benefits"
+          ? morphed
+            ? "Removed benefits are crossed out in red. New benefits show in green with the values you saved."
+            : "Statement credits and dollar benefits on the cards you hold today."
+          : morphed
+            ? "Crossed-out figures are your current wallet. Green shows where the recommended stack improves the math."
+            : "Rewards + benefits − annual fees for the cards you hold today.";
 
   return (
     <div className="relative mx-auto max-w-5xl">
@@ -769,6 +800,10 @@ function SpendRevealTable({
           {phase === "current" ? (
             <p className="animate-pulse text-sm font-medium text-muted-foreground">
               {meta.loading}
+            </p>
+          ) : keepingCurrent ? (
+            <p className="animate-in fade-in text-sm font-medium text-amber-800 duration-500 dark:text-amber-300">
+              Keeping your current cards
             </p>
           ) : (
             <p className="animate-in fade-in text-sm font-medium text-gain duration-500">
@@ -930,6 +965,7 @@ function SpendRevealTable({
             key={morphed ? "benefits-morphed" : "benefits-current"}
             rows={benefitRows}
             morphed={morphed}
+            keepingCurrent={keepingCurrent}
           />
         ) : (
           <OverviewRevealBox
@@ -938,6 +974,7 @@ function SpendRevealTable({
             recommended={recommendedOverview}
             morphed={morphed}
             rewardTypePreference={rewardTypePreference}
+            constraintTradeoff={constraintTradeoff}
             onContinue={onContinueToNextSteps}
           />
         )}
@@ -1121,6 +1158,7 @@ export function ComparisonScreen({
       phase={activePhase}
       showNextArrow={showNext}
       rewardTypePreference={rewardTypePreference}
+      constraintTradeoff={result.constraintTradeoff}
       onNext={goNext}
       onBack={goBack}
       onBackToStack={onBackToStack}

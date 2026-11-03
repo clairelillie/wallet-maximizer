@@ -86,6 +86,21 @@ function collapseFullStrategySelection(
   return hasEveryConcrete ? ["no_preference"] : list;
 }
 
+/** Keep an explicit transferable + portal pair checked instead of collapsing it. */
+function displayedStrategies(
+  strategies: RewardsStrategy[] | undefined
+): RewardsStrategy[] {
+  const list = strategies?.length ? strategies : (["no_preference"] as RewardsStrategy[]);
+  if (
+    list.includes("transferable") &&
+    list.includes("portal") &&
+    !list.includes("no_preference")
+  ) {
+    return list;
+  }
+  return collapseFullStrategySelection(list);
+}
+
 function strategiesSummary(strategies: RewardsStrategy[]): string {
   if (isNoPreferenceStrategies(strategies)) {
     return "Any rewards strategy";
@@ -129,11 +144,7 @@ function buildRulesSummary(preferences: UserPreferences): string[] {
     return lines;
   }
 
-  lines.push(
-    strategiesSummary(
-      collapseFullStrategySelection(preferences.rewardsStrategies)
-    )
-  );
+  lines.push(strategiesSummary(displayedStrategies(preferences.rewardsStrategies)));
 
   if (programs.length === 0) {
     lines.push("No airline/hotel program preference");
@@ -155,13 +166,12 @@ export function PreferencesStep({
   onCalculate,
 }: PreferencesStepProps) {
   const selectedPrograms = preferences.preferredLoyaltyPrograms ?? [];
-  const selectedStrategies = collapseFullStrategySelection(
-    preferences.rewardsStrategies
-  );
+  const selectedStrategies = displayedStrategies(preferences.rewardsStrategies);
 
   useEffect(() => {
     const raw = preferences.rewardsStrategies;
     if (!raw?.length) return;
+    if (raw.includes("transferable") && raw.includes("portal")) return;
     const collapsed = collapseFullStrategySelection(raw);
     const unchanged =
       collapsed.length === raw.length &&
@@ -460,7 +470,7 @@ export function PreferencesStep({
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div id="loyalty-programs" className="space-y-4">
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                 5. Airline & Hotel Programs

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { ConstraintTradeoffNote } from "@/components/output/ConstraintTradeoffNote";
 import { StackWallet } from "@/components/output/StackWallet";
 import { Button } from "@/components/ui/button";
 import type {
@@ -86,8 +87,15 @@ export function StackResultScreen({
     <div className="mx-auto max-w-3xl space-y-10">
       <header className="space-y-5">
         <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-[2.5rem] sm:leading-tight">
-          Your recommended {view.stack.length}-card stack
+          {result.constraintTradeoff
+            ? "Keep your current cards"
+            : `Your recommended ${view.stack.length}-card stack`}
         </h2>
+        {result.constraintTradeoff ? (
+          <div className="rounded-2xl border border-amber-200/70 bg-gradient-to-br from-amber-50/90 to-orange-50/40 px-5 py-5 dark:border-amber-900/40 dark:from-amber-950/25 dark:to-orange-950/15">
+            <ConstraintTradeoffNote tradeoff={result.constraintTradeoff} />
+          </div>
+        ) : null}
 
         <div className="space-y-3">
           <p className="text-lg leading-snug text-foreground sm:text-xl">
@@ -147,6 +155,9 @@ export function StackResultScreen({
         onSaveCard={onSaveCard}
         onCompare={onCompare}
         allSaved={allCardsSaved}
+        stackLabel={
+          result.constraintTradeoff ? "Keeping your current cards" : undefined
+        }
       />
     </div>
   );

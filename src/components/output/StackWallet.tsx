@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, Check, Plane } from "lucide-react";
+import { Check, Plane } from "lucide-react";
+import { FieldHelp } from "@/components/inputs/FieldHelp";
+import { inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
 import { CardKeepAlertDialog } from "@/components/output/CardKeepAlertDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,12 +43,8 @@ interface StackWalletProps {
   selectionKey: string | number;
   savedByCardId: Record<string, SavedCardValue>;
   onSaveCard: (value: SavedCardValue) => void;
-  onCompare: () => void;
-  allSaved: boolean;
   /** Drop cards the user no longer wants after a benefit edit. */
   onRemoveCards: (cardIds: string[]) => void;
-  /** Replaces the caption under the wallet when the kept cards are the recommendation. */
-  stackLabel?: string;
 }
 
 type CardFace = {
@@ -57,88 +55,29 @@ type CardFace = {
   label: string;
 };
 
-/** Default look per issuer — used when no product-specific face matches. */
-const ISSUER_FACES: Record<string, CardFace> = {
-  chase: {
-    face: "linear-gradient(145deg, #1a2744 0%, #2c4570 48%, #1e3358 100%)",
-    ink: "#f2f5fa",
-    chip: "#c9b07a",
-    stripe: "#d4a017",
-    label: "Chase",
-  },
-  amex: {
-    face: "linear-gradient(145deg, #6e7a86 0%, #9aa4ae 42%, #7d8792 100%)",
-    ink: "#1a1d21",
-    chip: "#e8d9a8",
-    stripe: "#1a1d21",
-    label: "Amex",
-  },
-  "capital-one": {
-    face: "linear-gradient(145deg, #1c1c1c 0%, #333 45%, #141414 100%)",
-    ink: "#f5f5f5",
-    chip: "#b8860b",
-    stripe: "#c41e3a",
-    label: "Capital One",
-  },
-  citi: {
-    face: "linear-gradient(145deg, #003b70 0%, #0a5ea8 50%, #002f5c 100%)",
-    ink: "#f0f6fc",
-    chip: "#d4af37",
-    stripe: "#e87722",
-    label: "Citi",
-  },
-  flexible: {
-    face: "linear-gradient(145deg, #3d4a3f 0%, #5a6b5c 50%, #2f3a31 100%)",
-    ink: "#f4f7f4",
-    chip: "#c4a574",
-    stripe: "#c4a574",
-    label: "Flexible",
-  },
-  unknown: {
-    face: "linear-gradient(145deg, #4a3f35 0%, #6b5a4a 50%, #3d342c 100%)",
-    ink: "#f7f2ea",
-    chip: "#c9b07a",
-    stripe: "#c4783a",
-    label: "Card",
-  },
-};
+const CARD_INK = "oklch(0.96 0.008 285)";
+const CARD_CHIP = "oklch(0.62 0.16 295)";
+const CARD_STRIPE = "oklch(0.7 0.16 295)";
 
-/**
- * Product-specific plastic colors (matched against card.name, case-insensitive).
- * Checked before the issuer default — e.g. Amex Gold vs Amex Platinum.
- */
-const PRODUCT_FACES: Array<{ match: RegExp; face: CardFace }> = [
-  {
-    match: /\bplatinum\b/i,
-    face: {
-      face: "linear-gradient(145deg, #6e7a86 0%, #9aa4ae 42%, #7d8792 100%)",
-      ink: "#1a1d21",
-      chip: "#e8d9a8",
-      stripe: "#1a1d21",
-      label: "Amex",
-    },
-  },
-  {
-    match: /\bsapphire (preferred|reserve)\b/i,
-    face: {
-      face: "linear-gradient(145deg, #0c2a6b 0%, #1e4db0 45%, #163a8a 100%)",
-      ink: "#f2f5fa",
-      chip: "#c9b07a",
-      stripe: "#d4a017",
-      label: "Chase",
-    },
-  },
-  {
-    match: /\bventure x\b/i,
-    face: {
-      face: "linear-gradient(145deg, #0f0f0f 0%, #2a2a2a 45%, #121212 100%)",
-      ink: "#f5f5f5",
-      chip: "#d4af37",
-      stripe: "#c41e3a",
-      label: "Capital One",
-    },
-  },
-];
+function flatFace(label: string, face: string): CardFace {
+  return {
+    face,
+    ink: CARD_INK,
+    chip: CARD_CHIP,
+    stripe: CARD_STRIPE,
+    label,
+  };
+}
+
+/** Flat near-black faces. Issuers differ only by a slight violet step. */
+const ISSUER_FACES: Record<string, CardFace> = {
+  chase: flatFace("Chase", "oklch(0.2 0.04 295)"),
+  amex: flatFace("Amex", "oklch(0.17 0.045 295)"),
+  "capital-one": flatFace("Capital One", "oklch(0.22 0.035 290)"),
+  citi: flatFace("Citi", "oklch(0.19 0.05 300)"),
+  flexible: flatFace("Flexible", "oklch(0.21 0.03 285)"),
+  unknown: flatFace("Card", "oklch(0.18 0.03 295)"),
+};
 
 function resolveEcosystem(card: StackCard): PreferredEcosystem | "unknown" {
   const catalog =
@@ -148,26 +87,7 @@ function resolveEcosystem(card: StackCard): PreferredEcosystem | "unknown" {
 
 function faceFor(card: StackCard): CardFace {
   const eco = resolveEcosystem(card);
-  const issuer = ISSUER_FACES[eco] ?? ISSUER_FACES.unknown;
-  const name = card.name;
-
-  // Amex Gold should read as gold metal, not the default silver Amex face.
-  if (eco === "amex" && /\bgold\b/i.test(name)) {
-    return {
-      face: "linear-gradient(145deg, #8a6a2a 0%, #d4af37 38%, #f0d78c 52%, #b8860b 78%, #7a5c20 100%)",
-      ink: "#1a1408",
-      chip: "#f5e6b8",
-      stripe: "#5c4510",
-      label: issuer.label,
-    };
-  }
-
-  const product = PRODUCT_FACES.find((entry) => entry.match.test(name));
-  if (product) {
-    return { ...product.face, label: issuer.label };
-  }
-
-  return issuer;
+  return ISSUER_FACES[eco] ?? ISSUER_FACES.unknown;
 }
 
 const ACTION_STYLES: Record<
@@ -180,19 +100,27 @@ const ACTION_STYLES: Record<
   SKIP: { variant: "outline", label: "SKIP" },
 };
 
+const reviewBoxHeaderClass =
+  "min-w-0 text-lg font-bold tracking-tight break-words sm:text-xl";
+
 function DetailSection({
   title,
+  help,
   children,
 }: {
   title: string;
+  help?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-card px-5 py-4 shadow-[0_1px_0_rgba(0,0,0,0.02)]">
-      <h5 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+    <div className={inputStepFormGroupClassName}>
+      <h5 className={reviewBoxHeaderClass}>
         {title}
+        {help ? (
+          <span className="ml-1.5 inline-flex align-middle">{help}</span>
+        ) : null}
       </h5>
-      <div className="mt-3">{children}</div>
+      <div className="mt-5 text-base font-medium">{children}</div>
     </div>
   );
 }
@@ -257,14 +185,16 @@ function BenefitValueRow({
     <li className="space-y-2">
       <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4">
         <div className="min-w-0">
-          <p className="text-sm font-medium">{benefit.label}</p>
+          <p className="text-base font-medium">{benefit.label}</p>
           {(benefit.description || benefit.usageAssumption) && (
-            <p className="mt-0.5 text-sm text-muted-foreground">
+            <p className="mt-0.5 text-base font-medium text-muted-foreground">
               {benefit.description ?? benefit.usageAssumption}
             </p>
           )}
           {overlapNote && (
-            <p className="mt-0.5 text-sm text-muted-foreground">{overlapNote}</p>
+            <p className="mt-0.5 text-base font-medium text-muted-foreground">
+              {overlapNote}
+            </p>
           )}
         </div>
         {benefit.isEditable ? (
@@ -273,7 +203,7 @@ function BenefitValueRow({
               Your estimate for {benefit.label}
             </label>
             <div className="relative">
-              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-base font-medium text-muted-foreground">
                 $
               </span>
               <Input
@@ -281,7 +211,7 @@ function BenefitValueRow({
                 type="number"
                 min={0}
                 max={benefit.maxValue > 0 ? benefit.maxValue : undefined}
-                className="w-[7.25rem] pl-6 font-mono tabular-nums"
+                className="h-11 min-h-11 w-[7.25rem] pl-6 text-base font-medium font-mono tabular-nums md:text-base"
                 value={shown}
                 onFocus={() => {
                   if (
@@ -305,10 +235,10 @@ function BenefitValueRow({
                 }}
               />
             </div>
-            <span className="text-xs text-muted-foreground">/yr</span>
+            <span className="text-base font-medium text-muted-foreground">/yr</span>
           </div>
         ) : (
-          <span className="font-mono text-sm tabular-nums text-gain sm:text-right">
+          <span className="font-mono text-base font-medium tabular-nums text-gain sm:text-right">
             ${benefit.effectiveValue.toLocaleString()}/yr
           </span>
         )}
@@ -317,10 +247,12 @@ function BenefitValueRow({
   );
 }
 
-const LEATHER =
-  "linear-gradient(160deg, #a67b5b 0%, #8b6145 45%, #6e4a32 100%)";
-const LEATHER_INNER =
-  "linear-gradient(180deg, #7a533a 0%, #8f6348 50%, #6b4630 100%)";
+/** Flat shell colors so the bifold sits on the near-black violet canvas. */
+const WALLET_SHELL = "oklch(0.2 0.04 295)";
+const WALLET_LINING = "oklch(0.15 0.028 295)";
+const WALLET_HINGE = "oklch(0.28 0.07 295)";
+const WALLET_POCKET = "oklch(0.17 0.032 295)";
+const WALLET_EDGE = "oklch(0.7 0.16 295 / 0.7)";
 
 /** Visible name strip for each overlapping card (px). */
 const CARD_PEEK = 30;
@@ -335,7 +267,7 @@ const PULL_HEADROOM = 12;
 const CARD_MOTION =
   "transform 380ms cubic-bezier(0.22, 1, 0.36, 1), filter 380ms ease";
 
-/** Move a card from its slot to a resting place fully above the leather. */
+/** Move a card from its slot to a resting place fully above the wallet. */
 function pullOutTranslate(slotTop: number): number {
   return -(slotTop + CARD_BODY + PANEL_TOP_PAD + CARD_PULL_GAP);
 }
@@ -361,37 +293,26 @@ function WalletPanel({
 
   return (
     <div
-      className={`relative flex-1 overflow-visible ${
-        side === "left" ? "rounded-l-[1.15rem]" : "rounded-r-[1.15rem]"
+      className={`relative flex-1 overflow-visible border border-brand/40 ${
+        side === "left" ? "rounded-l-md" : "rounded-r-md"
       }`}
       style={{
         minHeight: `${panelHeight}rem`,
-        background: LEATHER,
+        background: WALLET_SHELL,
         boxShadow:
           side === "left"
-            ? "inset -8px 0 16px rgba(0,0,0,0.18)"
-            : "inset 8px 0 16px rgba(0,0,0,0.18)",
+            ? `inset -2px 0 0 ${WALLET_EDGE}`
+            : `inset 2px 0 0 ${WALLET_EDGE}`,
       }}
     >
       {/* Inner lining */}
       <div
-        className={`absolute inset-[0.55rem] ${
-          side === "left"
-            ? "rounded-l-[0.75rem] rounded-r-[0.2rem]"
-            : "rounded-r-[0.75rem] rounded-l-[0.2rem]"
+        className={`absolute inset-2 ${
+          side === "left" ? "rounded-l-sm" : "rounded-r-sm"
         }`}
         style={{
-          background: LEATHER_INNER,
-          boxShadow: "inset 0 1px 0 rgba(196,165,116,0.15)",
-        }}
-      />
-
-      {/* Stitching */}
-      <div
-        className="pointer-events-none absolute inset-x-3 top-2.5 h-px opacity-40"
-        style={{
-          background:
-            "repeating-linear-gradient(90deg, #c4a574 0 3px, transparent 3px 8px)",
+          background: WALLET_LINING,
+          boxShadow: `inset 0 0 0 1px ${WALLET_EDGE}`,
         }}
       />
 
@@ -399,41 +320,18 @@ function WalletPanel({
         className="relative z-10 h-full px-2.5 pb-3 sm:px-3"
         style={{ paddingTop: PANEL_TOP_PAD }}
       >
-        {n === 0 ? (
-          <div
-            className="flex h-full min-h-[9rem] flex-col justify-between rounded-md px-2 py-3"
-            style={{
-              background:
-                "linear-gradient(180deg, rgba(26,16,12,0.2) 0%, rgba(26,16,12,0.05) 100%)",
-              boxShadow: "inset 0 0 0 1px rgba(196,165,116,0.18)",
-            }}
-            aria-hidden
-          >
-            <div
-              className="h-8 rounded-sm"
-              style={{
-                background:
-                  "linear-gradient(180deg, #5a3d2a 0%, #4a3222 100%)",
-                boxShadow: "inset 0 2px 4px rgba(0,0,0,0.35)",
-              }}
-            />
-            <p className="pb-1 text-center text-[9px] font-semibold uppercase tracking-[0.18em] text-[#d4b896]/55">
-              Bills
-            </p>
-          </div>
-        ) : (
+        {n === 0 ? null : (
           <div
             className="relative mx-auto w-full"
             style={{ height: stackHeight }}
           >
-            {/* Leather pocket covering the lower bodies */}
+            {/* Flat pocket lip covering the lower bodies */}
             <div
-              className="pointer-events-none absolute inset-x-0 bottom-0 z-[25] rounded-md"
+              className="pointer-events-none absolute inset-x-0 bottom-0 z-[25]"
               style={{
                 height: CARD_BODY - CARD_PEEK + 12,
-                background:
-                  "linear-gradient(180deg, transparent 0%, #6e4a32 12%, #5a3d2a 100%)",
-                boxShadow: "inset 0 3px 6px rgba(0,0,0,0.25)",
+                background: WALLET_POCKET,
+                boxShadow: `inset 0 2px 0 ${WALLET_EDGE}`,
               }}
               aria-hidden
             />
@@ -465,38 +363,29 @@ function WalletPanel({
                     transformOrigin: isSelected ? "center bottom" : "center",
                     transition: CARD_MOTION,
                     filter: isSelected
-                      ? "drop-shadow(0 16px 20px rgba(20,12,8,0.4))"
-                      : "drop-shadow(0 2px 5px rgba(20,12,8,0.28))",
+                      ? "drop-shadow(3px 3px 0 oklch(0.1 0.03 295))"
+                      : "none",
                   }}
                 >
                   <span
-                    className="relative block h-full w-full overflow-hidden rounded-[0.55rem] ring-1 ring-black/30"
+                    className="relative block h-full w-full overflow-hidden rounded-[2px] border border-brand"
                     style={{ background: face.face }}
                   >
-                    <span
-                      className="pointer-events-none absolute inset-0 opacity-35"
-                      style={{
-                        background:
-                          "linear-gradient(125deg, transparent 40%, rgba(255,255,255,0.16) 48%, transparent 56%)",
-                      }}
-                    />
-                    {/* Full name sits in the peek strip at the top of each card */}
-                    <span
-                      className="absolute left-2 right-7 top-[7px] truncate text-left text-[10px] font-semibold leading-tight tracking-wide sm:text-[11px]"
-                      style={{ color: face.ink }}
-                    >
-                      {card.name}
+                    <span className="absolute inset-x-0 top-0 flex h-[30px] items-center border-b border-brand bg-brand-soft px-2">
+                      <span className="min-w-0 flex-1 truncate whitespace-nowrap text-left text-[11px] font-semibold tracking-tight text-foreground">
+                        {card.name}
+                      </span>
                     </span>
                     <span
-                      className="absolute left-2 top-[2.55rem] h-2 w-3 rounded-[2px]"
+                      className="absolute left-2 top-[2.55rem] h-2.5 w-4 border border-brand"
                       style={{ background: face.chip }}
                     />
                     <span
-                      className="absolute right-0 top-0 h-0.5 w-8"
+                      className="absolute bottom-0 left-0 right-0 h-1"
                       style={{ background: face.stripe }}
                     />
                     {isSaved && (
-                      <span className="absolute right-1.5 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-gain text-white shadow-sm">
+                      <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center border border-brand bg-brand text-white">
                         <Check className="h-2.5 w-2.5" strokeWidth={3} />
                       </span>
                     )}
@@ -516,13 +405,11 @@ function BifoldWallet({
   selectedId,
   savedByCardId,
   onSelect,
-  stackLabel = "Your recommended stack",
 }: {
   stack: StackCard[];
   selectedId: string;
   savedByCardId: Record<string, SavedCardValue>;
   onSelect: (id: string) => void;
-  stackLabel?: string;
 }) {
   return (
     <div className="mx-auto w-full max-w-lg select-none">
@@ -532,12 +419,12 @@ function BifoldWallet({
         style={{ paddingTop: CARD_BODY + CARD_PULL_GAP + PULL_HEADROOM }}
       >
         <div
-          className="relative flex overflow-visible rounded-[1.2rem] shadow-[0_20px_40px_-16px_rgba(40,24,12,0.55)]"
+          className="relative flex overflow-visible rounded-md border border-brand/70 shadow-[6px_6px_0_oklch(0.1_0.03_295)]"
           role="listbox"
           aria-label="Recommended cards in open bifold wallet"
-          style={{ background: LEATHER }}
+          style={{ background: WALLET_SHELL }}
         >
-          {/* Left leaf — open lining / cash side, no card slots */}
+          {/* Left leaf — empty lining, no card slots */}
           <WalletPanel
             side="left"
             cards={[]}
@@ -551,12 +438,11 @@ function BifoldWallet({
             className="relative z-20 w-3 shrink-0 self-stretch sm:w-3.5"
             aria-hidden
             style={{
-              background:
-                "linear-gradient(90deg, #5a3d2a 0%, #7a533a 35%, #d4b89688 50%, #7a533a 65%, #5a3d2a 100%)",
-              boxShadow: "0 0 12px rgba(0,0,0,0.35)",
+              background: WALLET_HINGE,
+              boxShadow: `inset 1px 0 0 ${WALLET_EDGE}, inset -1px 0 0 ${WALLET_EDGE}`,
             }}
           >
-            <div className="absolute inset-y-4 left-1/2 w-px -translate-x-1/2 bg-[#c4a574]/30" />
+            <div className="absolute inset-y-3 left-1/2 w-px -translate-x-1/2 bg-brand" />
           </div>
 
           {/* Right leaf — all cards in a vertical stack of slots */}
@@ -568,13 +454,6 @@ function BifoldWallet({
             onSelect={onSelect}
           />
         </div>
-
-        <p className="mt-2 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          {stackLabel}
-        </p>
-        <p className="mt-1 text-center text-xs text-muted-foreground">
-          Tap a card to pull it fully out. The others stay in their slots.
-        </p>
       </div>
     </div>
   );
@@ -589,13 +468,9 @@ export function StackWallet({
   selectionKey,
   savedByCardId,
   onSaveCard,
-  onCompare,
-  allSaved,
   onRemoveCards,
-  stackLabel,
 }: StackWalletProps) {
-  const firstId = stack[0]?.id ?? "";
-  const [selectedId, setSelectedId] = useState(firstId);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loungeTipOpen, setLoungeTipOpen] = useState(false);
   const [loungeTipVersion, setLoungeTipVersion] = useState(0);
   const loungeTipBenefitIdRef = useRef<string | null>(null);
@@ -612,9 +487,9 @@ export function StackWallet({
   }
 
   useEffect(() => {
-    setSelectedId(firstId);
+    setSelectedId(null);
     setKeepAlerts([]);
-  }, [selectionKey, firstId]);
+  }, [selectionKey]);
 
   const openLoungeTip = (benefitId: string) => {
     if (loungeTipDismissedRef.current.has(benefitId)) return;
@@ -663,7 +538,7 @@ export function StackWallet({
   }, [stack, benefits, cheatSheet]);
 
   const selected = useMemo(
-    () => stack.find((c) => c.id === selectedId) ?? stack[0] ?? null,
+    () => (selectedId ? stack.find((c) => c.id === selectedId) ?? null : null),
     [stack, selectedId]
   );
 
@@ -681,7 +556,6 @@ export function StackWallet({
 
   const loungeTipDismissedIds = loungeTipDismissedRef.current;
   void loungeTipVersion;
-  const savedCount = stack.filter((c) => savedByCardId[c.id]).length;
   const isSelectedSaved = selected ? Boolean(savedByCardId[selected.id]) : false;
 
   if (stack.length === 0) return null;
@@ -708,6 +582,12 @@ export function StackWallet({
   const benefitsTotal = Math.round(
     cardBenefits.reduce((sum, b) => sum + countedBenefitValue(b), 0)
   );
+  const creditsTotal = Math.round(
+    manualBenefits.reduce((sum, b) => sum + countedBenefitValue(b), 0)
+  );
+  const recommendedBenefitsTotal = benefitsTotal - creditsTotal;
+  const hasRecommendedBenefits =
+    estimatedBenefits.length > 0 || choiceSections.length > 0;
   const annualFee = selected?.annualFee ?? 0;
   const netValue = earningsTotalDollars + benefitsTotal - annualFee;
 
@@ -741,24 +621,12 @@ export function StackWallet({
   };
 
   return (
-    <section className="space-y-6">
-      <div className="space-y-1">
-        <h3 className="text-base font-semibold">Your wallet</h3>
-        <p className="text-sm text-muted-foreground">
-          Review each card, set benefit values from how you actually spend, then
-          Save. Compare unlocks when every card is saved.
-        </p>
-        <p className="text-sm font-medium tabular-nums text-foreground">
-          Saved {savedCount} of {stack.length}
-        </p>
-      </div>
-
+    <section className="space-y-16">
       <BifoldWallet
         stack={stack}
         selectedId={selected?.id ?? ""}
         savedByCardId={savedByCardId}
         onSelect={setSelectedId}
-        stackLabel={stackLabel}
       />
 
       {selected && (
@@ -791,7 +659,7 @@ export function StackWallet({
 
           <DetailSection title="Earnings">
             {earnings.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-base font-medium text-muted-foreground">
                 {selected.isUnmatchedCustomCard
                   ? "This card isn't assigned as the best earn rate for any of your spend categories."
                   : "This card isn't assigned as the best earn rate for any of your spend categories — it's here for benefits or stack fit."}
@@ -808,7 +676,7 @@ export function StackWallet({
                   return (
                     <li
                       key={row.category}
-                      className="flex items-baseline justify-between gap-4 text-sm"
+                      className="flex items-baseline justify-between gap-4 text-base font-medium"
                     >
                       <span>
                         <span className="font-medium">{row.label}</span>
@@ -817,7 +685,7 @@ export function StackWallet({
                           {row.annualSpend.toLocaleString()}/yr spend
                         </span>
                       </span>
-                      <span className="shrink-0 text-right font-mono text-[13px] tabular-nums text-gain">
+                      <span className="shrink-0 text-right font-mono text-base font-medium tabular-nums text-gain">
                         <span className="block">{earn.primary}/yr</span>
                         {earn.secondary ? (
                           <span className="block text-[11px] text-muted-foreground">
@@ -828,7 +696,7 @@ export function StackWallet({
                     </li>
                   );
                 })}
-                <li className="flex items-center justify-between border-t border-border/50 pt-2.5 text-sm">
+                <li className="flex items-center justify-between border-t border-border/50 pt-2.5 text-base font-medium">
                   <span className="text-muted-foreground">Earnings total</span>
                   <span className="shrink-0 text-right font-mono tabular-nums text-gain">
                     {selected.isUnmatchedCustomCard ? (
@@ -853,16 +721,20 @@ export function StackWallet({
           </DetailSection>
 
           {!selected.isUnmatchedCustomCard && (
-          <DetailSection title="Benefits">
-            {cardBenefits.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No statement credits or dollar benefits counted on this card.
-              </p>
-            ) : (
+          <DetailSection
+            title="Benefits"
+            help={
+              <FieldHelp id="stack-benefits-help" title="What are benefits?">
+                These are recommended based on the answers to your questions
+                regarding travel and lifestyle
+              </FieldHelp>
+            }
+          >
+            {hasRecommendedBenefits ? (
               <div className="space-y-5">
                 {estimatedBenefits.length > 0 && (
                   <ul className="space-y-3">
-                    <li className="text-sm text-muted-foreground">
+                    <li className="text-base font-medium text-muted-foreground">
                       Estimated from your Benefits answers. Edit any value that
                       doesn&apos;t match how you actually use it.
                     </li>
@@ -880,15 +752,15 @@ export function StackWallet({
                 {choiceSections.map((section) => (
                   <div key={section.group} className="space-y-4">
                     <div>
-                      <p className="text-sm font-medium">Choose one</p>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
+                      <p className="text-base font-medium">Choose one</p>
+                      <p className="mt-0.5 text-base font-medium text-muted-foreground">
                         You can use one of these options. The higher value is
                         added. Edit either side if the other fits you better.
                       </p>
                     </div>
                     {section.options.map((option) => (
                       <div key={option.id} className="space-y-3">
-                        <p className="text-sm font-medium">{option.label}</p>
+                        <p className="text-base font-medium">{option.label}</p>
                         <ul className="space-y-3">
                           {option.benefits.map((b) => (
                             <BenefitValueRow
@@ -904,35 +776,57 @@ export function StackWallet({
                     ))}
                   </div>
                 ))}
-                {manualBenefits.length > 0 && (
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium">Other credits</p>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        Add a value only if you would use it. These start at $0
-                        and are not assumed.
-                      </p>
-                    </div>
-                    <ul className="space-y-3">
-                      {manualBenefits.map((b) => (
-                        <BenefitValueRow
-                          key={b.id}
-                          benefit={b}
-                          loungeTipDismissed={loungeTipDismissedIds.has(b.id)}
-                          onLoungeFocus={openLoungeTip}
-                          onBenefitOverride={onBenefitOverride}
-                        />
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div className="flex items-center justify-between border-t border-border/50 pt-2.5 text-sm">
+                <div className="flex items-center justify-between border-t border-border/50 pt-2.5 text-base font-medium">
                   <span className="text-muted-foreground">Benefits total</span>
                   <span className="font-mono font-semibold tabular-nums">
-                    ${benefitsTotal.toLocaleString()}/yr
+                    ${recommendedBenefitsTotal.toLocaleString()}/yr
                   </span>
                 </div>
               </div>
+            ) : (
+              <p className="text-base font-medium text-muted-foreground">
+                No benefits on this card.
+              </p>
+            )}
+          </DetailSection>
+          )}
+
+          {!selected.isUnmatchedCustomCard && (
+          <DetailSection
+            title="Credits"
+            help={
+              <FieldHelp id="stack-credits-help" title="What are credits?">
+                These are additional credits offered with the credit card, but
+                we don&apos;t know if you would use them or not. Add a value
+                only if you would use it. These start at $0 and are not
+                assumed.
+              </FieldHelp>
+            }
+          >
+            {manualBenefits.length > 0 ? (
+              <div className="space-y-5">
+                <ul className="space-y-3">
+                  {manualBenefits.map((b) => (
+                    <BenefitValueRow
+                      key={b.id}
+                      benefit={b}
+                      loungeTipDismissed={loungeTipDismissedIds.has(b.id)}
+                      onLoungeFocus={openLoungeTip}
+                      onBenefitOverride={onBenefitOverride}
+                    />
+                  ))}
+                </ul>
+                <div className="flex items-center justify-between border-t border-border/50 pt-2.5 text-base font-medium">
+                  <span className="text-muted-foreground">Credits total</span>
+                  <span className="font-mono font-semibold tabular-nums">
+                    ${creditsTotal.toLocaleString()}/yr
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-base font-medium text-muted-foreground">
+                No credits on this card.
+              </p>
             )}
           </DetailSection>
           )}
@@ -940,16 +834,16 @@ export function StackWallet({
           {!selected.isUnmatchedCustomCard && (
           <DetailSection title="How you'll use these points">
             {earnings.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-base font-medium text-muted-foreground">
                 This card isn&apos;t earning rewards on your spend, so there
                 are no points to transfer.
               </p>
             ) : selected.loyaltyPath ? (
-              <p className="text-sm leading-relaxed text-foreground">
+              <p className="text-base font-medium leading-relaxed text-foreground">
                 {selected.loyaltyPath}
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-base font-medium text-muted-foreground">
                 No airline or hotel transfer plan for this card — redeem as
                 cash back, statement credit, or through the issuer portal.
               </p>
@@ -957,11 +851,9 @@ export function StackWallet({
           </DetailSection>
           )}
 
-          <div className="rounded-xl border border-border/70 bg-card px-5 py-4">
-            <h5 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              Card value
-            </h5>
-            <ul className="mt-3 space-y-2 text-sm">
+          <div className={inputStepFormGroupClassName}>
+            <h5 className={reviewBoxHeaderClass}>Card value</h5>
+            <ul className="mt-5 space-y-2 text-base font-medium">
               <li className="flex justify-between gap-3">
                 <span className="text-muted-foreground">Rewards</span>
                 <span className="font-mono tabular-nums text-gain">
@@ -999,12 +891,6 @@ export function StackWallet({
               <Button type="button" onClick={handleSave}>
                 {isSelectedSaved ? "Update save" : "Save card"}
               </Button>
-              {allSaved && (
-                <Button type="button" variant="secondary" onClick={onCompare}>
-                  Compare to current wallet
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              )}
             </div>
           </div>
         </div>

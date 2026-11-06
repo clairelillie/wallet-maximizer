@@ -162,21 +162,86 @@
   }
 }
 
-/* Left-to-right wipe used on the compare spend-table morph. */
-@keyframes compare-swoosh {
+/* One-time light sweep when Compare first shows updated recommendations. */
+@keyframes compare-light-sweep {
   0% {
-    transform: translateX(-120%);
+    transform: translateX(-55%) skewX(-14deg);
     opacity: 0;
   }
-  12% {
+  16% {
     opacity: 1;
   }
   100% {
-    transform: translateX(120%);
+    transform: translateX(230%) skewX(-14deg);
     opacity: 0;
   }
 }
 
-.compare-swoosh-band {
-  animation: compare-swoosh 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+@keyframes compare-dazzle-glow {
+  0% {
+    box-shadow: 0 0 0 0 oklch(0.7 0.16 295 / 0);
+  }
+  34% {
+    box-shadow:
+      0 0 0 1px oklch(0.7 0.16 295 / 0.95),
+      0 0 28px 0 oklch(0.67 0.18 295 / 0.42);
+  }
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.7 0.16 295 / 0);
+  }
+}
+
+@keyframes compare-highlight-settle {
+  0% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.compare-light-sweep {
+  position: absolute;
+  top: -12%;
+  bottom: -12%;
+  left: 0;
+  width: 42%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    oklch(0.7 0.16 295 / 0.14) 22%,
+    oklch(0.78 0.14 295 / 0.62) 44%,
+    oklch(0.96 0.02 295 / 0.5) 52%,
+    oklch(0.84 0.14 165 / 0.5) 68%,
+    transparent 100%
+  );
+  animation: compare-light-sweep 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.compare-dazzle-glow {
+  animation: compare-dazzle-glow 0.95s ease-out forwards;
+}
+
+.compare-highlight-settle {
+  animation: compare-highlight-settle 0.9s cubic-bezier(0.22, 1, 0.36, 1)
+    forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compare-light-sweep,
+  .compare-dazzle-glow,
+  .compare-highlight-settle {
+    animation: none;
+  }
+
+  .compare-light-sweep {
+    opacity: 0;
+  }
+
+  .compare-highlight-settle {
+    opacity: 1;
+  }
 }

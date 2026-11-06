@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Check, Plane } from "lucide-react";
 import { FieldHelp } from "@/components/inputs/FieldHelp";
 import { inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
@@ -180,17 +187,26 @@ function BenefitValueRow({
         ? `Already counted on ${benefit.countedOnCard}, so this value is not added again.`
         : (benefit.exclusionNote ?? null)
       : null;
+  const description = benefit.description?.trim() ?? "";
 
   return (
     <li className="space-y-2">
       <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4">
         <div className="min-w-0">
-          <p className="text-base font-medium">{benefit.label}</p>
-          {(benefit.description || benefit.usageAssumption) && (
-            <p className="mt-0.5 text-base font-medium text-muted-foreground">
-              {benefit.description ?? benefit.usageAssumption}
-            </p>
-          )}
+          <p className="text-base font-medium">
+            {benefit.label}
+            {description ? (
+              <span className="ml-1.5 inline-flex align-middle">
+                <FieldHelp
+                  id={`stack-benefit-${benefit.id}`}
+                  title={benefit.label}
+                  icon="exclamation"
+                >
+                  {description}
+                </FieldHelp>
+              </span>
+            ) : null}
+          </p>
           {overlapNote && (
             <p className="mt-0.5 text-base font-medium text-muted-foreground">
               {overlapNote}
@@ -266,6 +282,32 @@ const CARD_PULL_GAP = 18;
 const PULL_HEADROOM = 12;
 const CARD_MOTION =
   "transform 380ms cubic-bezier(0.22, 1, 0.36, 1), filter 380ms ease";
+
+/** Space between the viewport edge and the opened card's name row. */
+const DETAILS_FOCUS_OFFSET = 16;
+
+/** Document top of a node, ignoring its own transform (entrance motion). */
+function layoutDocumentTop(node: HTMLElement): number {
+  let top = 0;
+  let el: HTMLElement | null = node;
+  while (el) {
+    top += el.offsetTop;
+    el = el.offsetParent as HTMLElement | null;
+  }
+  return top;
+}
+
+/** After a save, frame the bifold in the middle of the screen. */
+function scrollWalletIntoView() {
+  const node = document.querySelector<HTMLElement>(
+    '[aria-label="Recommended cards in open bifold wallet"]'
+  );
+  if (!node) return;
+  const rect = node.getBoundingClientRect();
+  const top =
+    rect.top + window.scrollY - (window.innerHeight - rect.height) / 2;
+  window.scrollTo(0, Math.max(0, top));
+}
 
 /** Move a card from its slot to a resting place fully above the wallet. */
 function pullOutTranslate(slotTop: number): number {
@@ -348,7 +390,7 @@ function WalletPanel({
                   type="button"
                   role="option"
                   aria-selected={isSelected}
-                  aria-label={card.name}
+                  aria-label={isSaved ? `${card.name}, saved` : card.name}
                   onClick={() => onSelect(card.id)}
                   className="absolute inset-x-1 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
                   style={{
@@ -371,10 +413,21 @@ function WalletPanel({
                     className="relative block h-full w-full overflow-hidden rounded-[2px] border border-brand"
                     style={{ background: face.face }}
                   >
-                    <span className="absolute inset-x-0 top-0 flex h-[30px] items-center border-b border-brand bg-brand-soft px-2">
-                      <span className="min-w-0 flex-1 truncate whitespace-nowrap text-left text-[11px] font-semibold tracking-tight text-foreground">
+                    <span
+                      className={`absolute inset-x-0 top-0 flex h-[30px] items-center gap-1.5 border-b px-2 ${
+                        isSaved
+                          ? "border-gain bg-gain-soft"
+                          : "border-brand bg-brand-soft"
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1 truncate whitespace-nowrap text-left font-sans text-[13px] font-bold tracking-tight text-foreground">
                         {card.name}
                       </span>
+                      {isSaved ? (
+                        <span className="flex size-4 shrink-0 items-center justify-center rounded-[2px] bg-gain text-background">
+                          <Check className="size-3" strokeWidth={3} />
+                        </span>
+                      ) : null}
                     </span>
                     <span
                       className="absolute left-2 top-[2.55rem] h-2.5 w-4 border border-brand"
@@ -384,11 +437,6 @@ function WalletPanel({
                       className="absolute bottom-0 left-0 right-0 h-1"
                       style={{ background: face.stripe }}
                     />
-                    {isSaved && (
-                      <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center border border-brand bg-brand text-white">
-                        <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                      </span>
-                    )}
                   </span>
                 </button>
               );
@@ -471,6 +519,8 @@ export function StackWallet({
   onRemoveCards,
 }: StackWalletProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const scrollAfterSaveRef = useRef(false);
   const [loungeTipOpen, setLoungeTipOpen] = useState(false);
   const [loungeTipVersion, setLoungeTipVersion] = useState(0);
   const loungeTipBenefitIdRef = useRef<string | null>(null);
@@ -537,10 +587,36 @@ export function StackWallet({
     return () => window.clearTimeout(timer);
   }, [stack, benefits, cheatSheet]);
 
+  useLayoutEffect(() => {
+    const room = document.getElementById("wallet-scroll-room");
+    if (scrollAfterSaveRef.current) {
+      scrollAfterSaveRef.current = false;
+      // Card details just closed, so the page below the wallet is short.
+      // Add room after the footer, then frame the bifold in the viewport.
+      if (room) room.style.height = `${window.innerHeight}px`;
+      scrollWalletIntoView();
+      return;
+    }
+    if (selectedId && room) room.style.height = "0px";
+  }, [selectedId]);
+
   const selected = useMemo(
     () => (selectedId ? stack.find((c) => c.id === selectedId) ?? null : null),
     [stack, selectedId]
   );
+
+  const openCardId = selected?.id ?? null;
+
+  useLayoutEffect(() => {
+    if (!openCardId) return;
+    const node = detailsRef.current;
+    if (!node) return;
+    // Align the details to the start of the viewport, inset slightly so the
+    // card name is not flush with the edge. Same-card clicks do not change
+    // openCardId, so they leave the scroll position alone.
+    const top = layoutDocumentTop(node) - DETAILS_FOCUS_OFFSET;
+    window.scrollTo(0, Math.max(0, top));
+  }, [openCardId]);
 
   const earnings = useMemo(() => {
     if (!selected) return [];
@@ -607,17 +683,8 @@ export function StackWallet({
       benefitOverrides,
     });
 
-    const currentIndex = stack.findIndex((c) => c.id === selected.id);
-    const nextUnsaved = stack.find(
-      (c, i) => i > currentIndex && !savedByCardId[c.id] && c.id !== selected.id
-    );
-    const firstUnsaved = stack.find(
-      (c) => c.id !== selected.id && !savedByCardId[c.id]
-    );
-    const advanceTo = nextUnsaved ?? firstUnsaved;
-    if (advanceTo) {
-      setSelectedId(advanceTo.id);
-    }
+    scrollAfterSaveRef.current = true;
+    setSelectedId(null);
   };
 
   return (
@@ -632,7 +699,8 @@ export function StackWallet({
       {selected && (
         <div
           key={selected.id}
-          className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-3"
+          ref={detailsRef}
+          className="animate-in fade-in slide-in-from-bottom-2 space-y-3 duration-300"
         >
           <div className="flex flex-wrap items-baseline justify-between gap-2 px-0.5">
             <h4
@@ -642,17 +710,21 @@ export function StackWallet({
               {selected.name}
             </h4>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={actionStyle.variant}>{actionStyle.label}</Badge>
+              {actionStyle.label === "ADD" ? (
+                <span className="inline-flex h-7 items-center rounded-md bg-gain px-2.5 font-sans text-sm font-extrabold leading-none tracking-wide text-background">
+                  ADD
+                </span>
+              ) : (
+                <Badge variant={actionStyle.variant}>{actionStyle.label}</Badge>
+              )}
               {isSelectedSaved && (
                 <Badge variant="secondary" className="gap-1">
                   <Check className="h-3 w-3" />
                   Saved
                 </Badge>
               )}
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {selected.annualFee > 0
-                  ? `$${selected.annualFee}/yr`
-                  : "No fee"}
+              <span className="font-sans text-base font-extrabold text-foreground">
+                Annual Fee: ${selected.annualFee}
               </span>
             </div>
           </div>
@@ -887,8 +959,12 @@ export function StackWallet({
                 </span>
               </li>
             </ul>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button type="button" onClick={handleSave}>
+            <div className="mt-4 flex justify-end">
+              <Button
+                type="button"
+                className="h-11 min-h-11 rounded-2xl px-4 text-base font-semibold"
+                onClick={handleSave}
+              >
                 {isSelectedSaved ? "Update save" : "Save card"}
               </Button>
             </div>
@@ -915,7 +991,7 @@ export function StackWallet({
             role="dialog"
             aria-modal="true"
             aria-labelledby="lounge-tip-title"
-            className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl"
+            className="w-full max-w-md rounded-xl border border-white/35 bg-[oklch(0.34_0.03_285)] p-5 text-foreground shadow-xl ring-1 ring-white/15"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex gap-3">
@@ -929,7 +1005,7 @@ export function StackWallet({
                 >
                   Check lounge access at your airport
                 </h2>
-                <p className="text-sm leading-relaxed text-muted-foreground">
+                <p className="text-sm leading-relaxed text-foreground/90">
                   Before you set this value, research your home airport and see
                   if there&apos;s a {selectedFace.label}
                   {" "}

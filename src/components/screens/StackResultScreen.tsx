@@ -72,15 +72,6 @@ export function StackResultScreen({
   }, [primaryAlt, result]);
 
   const cheatSheet = view.cheatSheet.filter((row) => row.monthlySpend > 0);
-  const earningsDollars = Math.round(Math.abs(view.rewardsSubtotal));
-  const benefitsUpTo = Math.round(
-    view.benefits.reduce((sum, b) => {
-      if (b.countsInStack === false) return sum;
-      return sum + (b.maxValue > 0 ? b.maxValue : b.effectiveValue);
-    }, 0)
-  );
-  const feesDollars = Math.round(Math.abs(view.feesSubtotal));
-  const grossBeforeFees = earningsDollars + benefitsUpTo;
 
   const reviewIdsKey = view.stack.map((c) => c.id).join("\0");
 
@@ -123,40 +114,6 @@ export function StackResultScreen({
         </div>
       ) : null}
 
-      <div className="space-y-3">
-        <p className="text-lg leading-snug text-foreground sm:text-xl">
-          Estimated{" "}
-          <span className="font-mono text-3xl font-semibold tabular-nums text-gain sm:text-4xl">
-            ${earningsDollars.toLocaleString()}
-          </span>{" "}
-          in earnings and up to{" "}
-          <span className="font-mono text-3xl font-semibold tabular-nums text-gain sm:text-4xl">
-            ${benefitsUpTo.toLocaleString()}
-          </span>{" "}
-          value from benefits
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Based on how you value the benefits above.
-        </p>
-        {grossBeforeFees > feesDollars ? (
-          <p className="max-w-xl text-base leading-relaxed text-foreground">
-            These earnings will still remain net positive over{" "}
-            <span className="font-mono text-xl font-semibold tabular-nums text-gain">
-              ${feesDollars.toLocaleString()}
-            </span>{" "}
-            in annual fees.
-          </p>
-        ) : (
-          <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Annual fees total{" "}
-            <span className="font-mono font-semibold tabular-nums">
-              ${feesDollars.toLocaleString()}
-            </span>
-            — refine benefit values above to see your true net.
-          </p>
-        )}
-      </div>
-
       <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-6">
         <Button
           type="button"
@@ -177,6 +134,7 @@ export function StackResultScreen({
           <ArrowRight className="ml-2 size-5" />
         </Button>
       </div>
+      <div id="wallet-scroll-room" aria-hidden />
     </div>
   );
 }

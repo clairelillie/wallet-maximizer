@@ -76,7 +76,7 @@ export function FieldHelp({
                 aria-modal="true"
                 aria-labelledby={titleId}
                 aria-describedby={bodyId}
-                className="relative w-full max-w-md rounded-2xl border border-border/70 bg-card px-6 py-7 sm:px-8 sm:py-8"
+                className="relative w-full max-w-md rounded-2xl border border-white/35 bg-[oklch(0.34_0.03_285)] px-6 py-7 text-foreground shadow-xl ring-1 ring-white/15 sm:px-8 sm:py-8"
                 onClick={(event) => event.stopPropagation()}
               >
                 <button
@@ -91,7 +91,7 @@ export function FieldHelp({
                 <h2 id={titleId} className="pr-10 text-2xl font-bold tracking-tight">
                   {title}
                 </h2>
-                <p id={bodyId} className="mt-3 text-base font-medium leading-relaxed">
+                <p id={bodyId} className="mt-3 text-base font-medium leading-relaxed text-foreground">
                   {children}
                 </p>
               </div>

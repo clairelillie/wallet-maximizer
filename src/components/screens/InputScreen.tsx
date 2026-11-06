@@ -104,7 +104,7 @@ export function InputScreen({
               key={item.id}
               type="button"
               onClick={() => setStep(item.id)}
-              className={`flex min-h-14 flex-col items-start justify-center gap-0.5 rounded-2xl px-2 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-16 sm:px-4 ${
+              className={`flex min-h-14 items-center justify-center rounded-2xl px-2 py-3 text-center text-xs font-semibold leading-tight tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-16 sm:px-4 sm:text-base ${
                 active
                   ? "bg-brand text-white shadow-[0_0_18px_oklch(0.67_0.18_295/0.35)]"
                   : done
@@ -112,12 +112,7 @@ export function InputScreen({
                     : "bg-muted text-muted-foreground hover:text-foreground"
               }`}
             >
-              <span className="text-[11px] font-medium uppercase tracking-[0.14em]">
-                Step {index + 1}
-              </span>
-              <span className="text-xs font-semibold leading-tight tracking-tight sm:text-base">
-                {item.label}
-              </span>
+              {item.label}
             </button>
           );
         })}

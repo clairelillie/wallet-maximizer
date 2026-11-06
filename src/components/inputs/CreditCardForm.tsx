@@ -35,7 +35,7 @@ interface CreditCardFormProps {
 
 const fieldLabelClass = "text-base font-medium";
 const fieldInputClass =
-  "h-11 min-h-11 rounded-xl px-3 text-base font-medium md:text-base";
+  "h-11 min-h-11 rounded-xl border-white/35 bg-[oklch(0.34_0.03_285)] px-3 text-base font-medium hover:bg-[oklch(0.38_0.03_285)] md:text-base dark:border-white/35 dark:bg-[oklch(0.34_0.03_285)] dark:hover:bg-[oklch(0.38_0.03_285)]";
 
 function MultiplierField({
   label,
@@ -74,7 +74,7 @@ const blankCardFields = {
 };
 
 const selectTriggerClassName =
-  "h-11 min-h-11 w-full rounded-xl border-white/10 bg-white/[0.04] px-3 font-sans text-base font-medium leading-normal data-[size=default]:h-11 data-[size=default]:min-h-11 md:text-base dark:bg-input/30";
+  "h-11 min-h-11 w-full rounded-xl border-white/35 bg-[oklch(0.34_0.03_285)] px-3 font-sans text-base font-medium leading-normal data-[size=default]:h-11 data-[size=default]:min-h-11 md:text-base hover:bg-[oklch(0.38_0.03_285)] dark:border-white/35 dark:bg-[oklch(0.34_0.03_285)] dark:hover:bg-[oklch(0.38_0.03_285)]";
 
 function CardSelect({
   id,

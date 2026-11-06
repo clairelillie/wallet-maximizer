@@ -44,7 +44,13 @@ export function ScreenNav({
 
   return (
     <nav className="border-b border-white/8 bg-background/40 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-3xl items-stretch gap-1 px-4 sm:px-6">
+      <div className="px-4 sm:px-6">
+      <div
+        className={cn(
+          "mx-auto grid w-full max-w-3xl",
+          screens.length === 4 ? "grid-cols-4" : "grid-cols-3"
+        )}
+      >
         {screens.map((item) => {
           const locked =
             item.id === "compare"
@@ -60,7 +66,7 @@ export function ScreenNav({
               disabled={locked}
               onClick={() => onChange(item.id)}
               className={cn(
-                "relative flex flex-1 flex-col items-start gap-0.5 py-3 text-left transition-colors",
+                "relative flex flex-col items-center justify-center gap-0.5 px-2 py-3 text-center transition-colors",
                 active
                   ? "text-foreground"
                   : locked
@@ -80,6 +86,7 @@ export function ScreenNav({
             </button>
           );
         })}
+      </div>
       </div>
     </nav>
   );

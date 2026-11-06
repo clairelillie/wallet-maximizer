@@ -133,13 +133,6 @@ export function trustedTravelerCapture(status: TrustedTravelerStatus): number {
   return status === "would-use-reimbursement" ? 1 : 0;
 }
 
-export function optionLabel<T extends string>(
-  options: Array<{ value: T; label: string }>,
-  value: T
-): string {
-  return options.find((o) => o.value === value)?.label ?? value;
-}
-
 export const DEFAULT_PERK_BEHAVIORS: PerkBehaviorAnswers = {
   loungeVisits: "never",
   hotelNights: "0",
@@ -152,40 +145,3 @@ export const DEFAULT_PERK_BEHAVIORS: PerkBehaviorAnswers = {
   streamingMonthly: "0",
   trustedTravelerStatus: "already-have",
 };
-
-/** Short labels for the Benefits profile summary. */
-export function benefitProfileSummary(behaviors: PerkBehaviorAnswers): {
-  travel: string[];
-  lifestyle: string[];
-} {
-  const travelCreditLabel =
-    behaviors.travelCreditLikelihood === "yes"
-      ? "Likely to use travel credits"
-      : behaviors.travelCreditLikelihood === "maybe"
-        ? "Might use travel credits"
-        : "Unlikely to use travel credits";
-
-  const upscaleHotelLabel =
-    behaviors.upscaleHotelLikelihood === "yes"
-      ? "Would book a higher-end portal hotel stay"
-      : behaviors.upscaleHotelLikelihood === "maybe"
-        ? "Might book a higher-end portal hotel stay"
-        : "Unlikely to book a higher-end portal hotel stay";
-
-  return {
-    travel: [
-      behaviors.loungeVisits === "never"
-        ? "No lounge visits"
-        : `${optionLabel(LOUNGE_VISIT_OPTIONS, behaviors.loungeVisits).replace(" times a year", "")} lounge visits/year`,
-      `${optionLabel(HOTEL_NIGHTS_OPTIONS, behaviors.hotelNights)} hotel nights/year`,
-      ...(behaviors.hotelNights === "0" ? [] : [upscaleHotelLabel]),
-      travelCreditLabel,
-      `TSA status: ${optionLabel(TRUSTED_TRAVELER_OPTIONS, behaviors.trustedTravelerStatus)}`,
-    ],
-    lifestyle: [
-      `${optionLabel(MONTHLY_SPEND_OPTIONS, behaviors.rideshareMonthly)}/month rideshare`,
-      `${optionLabel(MONTHLY_SPEND_OPTIONS, behaviors.foodDeliveryMonthly)}/month food delivery`,
-      `${optionLabel(MONTHLY_SPEND_CAP100_OPTIONS, behaviors.resyMonthly)}/month at Resy restaurants`,
-    ],
-  };
-}

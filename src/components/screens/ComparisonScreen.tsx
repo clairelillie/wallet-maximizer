@@ -1,39 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import {
-  ConstraintTradeoffNote,
-  rewardsFeesSplitSentence,
-} from "@/components/output/ConstraintTradeoffNote";
+import { findCatalogCardByName } from "@/catalog";
+import { FieldHelp } from "@/components/inputs/FieldHelp";
+import { inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
 import { Button } from "@/components/ui/button";
 import { formatSignedMoney } from "@/lib/card-value";
 import {
   formatCategoryEarn,
   formatRewardsTotal,
-  pointValueLabel,
-  showPointsAsPrimary,
 } from "@/lib/reward-format";
+import { cn } from "@/lib/utils";
 import type {
   BenefitAssessment,
   CategoryAssignment,
   OptimizationResult,
   PerkCreditLine,
-  ConstraintTradeoff,
   RewardTypePreference,
   SavedCardValue,
   SpendCategory,
   UserCreditCard,
 } from "@/types";
 
-type RevealStep = "earnings" | "benefits" | "overview";
-
-type OverviewTotals = {
-  rewards: number;
-  benefits: number;
-  fees: number;
-  net: number;
-};
+type CompareView = "current" | "updated";
 
 interface ComparisonScreenProps {
   result: OptimizationResult;
@@ -43,70 +33,6 @@ interface ComparisonScreenProps {
   onBackToStack: () => void;
   onEditInputs: () => void;
   onContinueToNextSteps: () => void;
-}
-
-type RevealRow = {
-  category: SpendCategory;
-  label: string;
-  monthlySpend: number;
-  annualSpend: number;
-  current: CategoryAssignment;
-  recommended: CategoryAssignment | null;
-  upgraded: boolean;
-};
-
-function buildRevealRows(
-  currentLines: CategoryAssignment[],
-  recommendedLines: CategoryAssignment[]
-): RevealRow[] {
-  const byCategory = new Map(
-    recommendedLines.map((row) => [row.category, row] as const)
-  );
-
-  return currentLines
-    .filter((row) => row.monthlySpend > 0)
-    .map((current) => {
-      const recommended = byCategory.get(current.category) ?? null;
-      const upgraded = Boolean(
-        recommended &&
-          (recommended.cardName !== current.cardName ||
-            recommended.multiplier !== current.multiplier ||
-            recommended.annualReward > current.annualReward)
-      );
-      return {
-        category: current.category,
-        label: current.label,
-        monthlySpend: current.monthlySpend,
-        annualSpend: current.annualSpend || current.monthlySpend * 12,
-        current,
-        recommended,
-        upgraded,
-      };
-    });
-}
-
-function ValueCell({
-  row,
-  preference,
-}: {
-  row: CategoryAssignment;
-  preference: RewardTypePreference;
-}) {
-  const earn = formatCategoryEarn(row, preference);
-  return (
-    <span className="block text-right font-mono text-[13px] tabular-nums">
-      <span className="block">{earn.primary}</span>
-      {earn.secondary ? (
-        <span className="block text-[11px] text-muted-foreground">
-          {earn.secondary}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function benefitKey(cardName: string, label: string, valuedBy: string): string {
-  return `${cardName.toLowerCase()}::${valuedBy}::${label.toLowerCase()}`;
 }
 
 type BenefitRevealRow =
@@ -125,6 +51,39 @@ type BenefitRevealRow =
       cardName: string;
       recommendedValue: number;
     };
+
+/** Plays once per browser session, the first time Updated recommendations is opened. */
+let updatedDazzlePlayed = false;
+
+const DAZZLE_MS = 1000;
+
+const footerButtonClass =
+  "h-14 min-h-14 rounded-2xl px-6 text-base font-semibold sm:h-16 sm:min-h-16 sm:px-8";
+
+const sectionTitleClass =
+  "min-w-0 text-lg font-bold tracking-tight break-words sm:text-xl";
+
+const earnColumnsClass =
+  "grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,1.4fr)_minmax(6.5rem,auto)_minmax(8rem,auto)] sm:items-baseline sm:gap-x-6";
+
+function benefitKey(cardName: string, label: string, valuedBy: string): string {
+  return `${cardName.toLowerCase()}::${valuedBy}::${label.toLowerCase()}`;
+}
+
+function benefitDescription(
+  cardName: string,
+  label: string,
+  benefits: BenefitAssessment[]
+): string | undefined {
+  const fromResult = benefits
+    .find((benefit) => benefit.cardName === cardName && benefit.label === label)
+    ?.description?.trim();
+  if (fromResult) return fromResult;
+  const fromCatalog = findCatalogCardByName(cardName)
+    ?.benefits?.find((benefit) => benefit.label === label)
+    ?.description?.trim();
+  return fromCatalog || undefined;
+}
 
 function verifiedBenefitValue(
   benefit: BenefitAssessment,
@@ -207,822 +166,172 @@ function buildBenefitRevealRows(
   return rows;
 }
 
-function BenefitsRevealBox({
-  rows,
-  morphed,
-  keepingCurrent = false,
-}: {
-  rows: BenefitRevealRow[];
-  morphed: boolean;
-  keepingCurrent?: boolean;
-}) {
-  const visibleRows = morphed
-    ? rows
-    : rows.filter((r) => r.kind === "removed" || r.kind === "kept");
+function earningsEmptyCopy(
+  view: CompareView,
+  result: OptimizationResult
+): string {
+  const currentHasSpend = result.currentRewardsBreakdown.categoryLines.some(
+    (row) => row.monthlySpend > 0
+  );
+  const recommendedHasSpend =
+    result.optimizedRewardsBreakdown.categoryLines.some(
+      (row) => row.monthlySpend > 0
+    );
 
-  const currentTotal = rows.reduce((sum, r) => {
-    if (r.kind === "added") return sum;
-    return sum + r.currentValue;
-  }, 0);
+  if (!currentHasSpend && !recommendedHasSpend) {
+    return "No monthly spend in this result. Add spend on the inputs page to see this breakdown.";
+  }
 
-  const recommendedTotal = rows.reduce((sum, r) => {
-    if (r.kind === "removed") return sum;
-    if (r.kind === "added") return sum + r.recommendedValue;
-    return sum + (r.recommendedValue ?? r.currentValue);
-  }, 0);
+  if (view === "current") {
+    return "No card in your current wallet to assign this spend to. Add a card you already hold on the inputs page to see this breakdown.";
+  }
 
-  const displayTotal = morphed ? recommendedTotal : currentTotal;
+  return "No recommended card to assign this spend to.";
+}
 
+function currentDisplayedRate(
+  lines: CategoryAssignment[],
+  category: SpendCategory
+): number | null {
+  const row = lines.find(
+    (line) => line.category === category && line.monthlySpend > 0
+  );
+  return row ? row.multiplier : null;
+}
+
+/**
+ * Higher multiplier than the same category on the current wallet.
+ * A category with no current rate counts as an improvement.
+ */
+function isImprovedEarnRate(
+  updated: CategoryAssignment,
+  currentLines: CategoryAssignment[]
+): boolean {
+  if (updated.monthlySpend <= 0) return false;
+  const current = currentDisplayedRate(currentLines, updated.category);
+  if (current == null || !(current > 0)) return true;
+  return updated.multiplier > current;
+}
+
+function UpdatedReveal({ active }: { active: boolean }) {
+  if (!active) return null;
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border/70">
-      {morphed ? (
-        <div
-          className="compare-swoosh-band pointer-events-none absolute inset-y-0 left-0 z-20 w-1/3"
-          aria-hidden
-          style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, oklch(0.72 0.12 145 / 0.15) 35%, oklch(0.55 0.14 45 / 0.55) 50%, oklch(0.72 0.12 145 / 0.2) 65%, transparent 100%)",
-            boxShadow: "0 0 40px oklch(0.55 0.14 45 / 0.35)",
-          }}
-        />
-      ) : null}
-      <div className="border-b border-border/60 bg-muted/25 px-4 py-3">
-        <h3 className="text-base font-semibold tracking-tight">
-          {morphed && !keepingCurrent
-            ? "Your upgraded benefits"
-            : "Your current benefits"}
-        </h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {morphed && keepingCurrent
-            ? "These are the credits on the cards you're keeping."
-            : morphed
-              ? "Removed benefits are crossed out in red. New benefits from your recommended stack show in green with the values you saved."
-              : "Statement credits and dollar benefits on the cards you hold today."}
-        </p>
-      </div>
-      {visibleRows.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-muted-foreground">
-          {morphed
-            ? "No dollar benefits counted on the recommended stack."
-            : "No dollar benefits counted on your current wallet."}
-        </p>
-      ) : (
-        <ul className="divide-y divide-border/40">
-          {visibleRows.map((row, index) => {
-            if (!morphed && row.kind !== "added") {
-              return (
-                <li
-                  key={row.key}
-                  className="flex items-baseline justify-between gap-4 px-4 py-3 text-sm"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium">{row.label}</p>
-                    <p className="text-xs text-muted-foreground">{row.cardName}</p>
-                  </div>
-                  <span className="shrink-0 font-mono tabular-nums">
-                    ${row.currentValue.toLocaleString()}/yr
-                  </span>
-                </li>
-              );
-            }
-
-            if (!morphed) return null;
-
-            if (row.kind === "removed") {
-              return (
-                <li
-                  key={row.key}
-                  className="flex items-baseline justify-between gap-4 px-4 py-3 text-sm animate-in fade-in duration-500 fill-mode-both"
-                  style={{ animationDelay: `${index * 80}ms` }}
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-red-600 line-through decoration-2 decoration-red-600/80 dark:text-red-400 dark:decoration-red-400/80">
-                      {row.label}
-                    </p>
-                    <p className="text-xs text-red-600/80 line-through dark:text-red-400/80">
-                      {row.cardName}
-                    </p>
-                  </div>
-                  <span className="shrink-0 font-mono tabular-nums text-red-600 line-through decoration-2 decoration-red-600/80 dark:text-red-400 dark:decoration-red-400/80">
-                    ${row.currentValue.toLocaleString()}/yr
-                  </span>
-                </li>
-              );
-            }
-
-            if (row.kind === "added") {
-              return (
-                <li
-                  key={row.key}
-                  className="flex items-baseline justify-between gap-4 bg-gain-soft/40 px-4 py-3 text-sm animate-in fade-in slide-in-from-left-2 duration-500 fill-mode-both dark:bg-gain-soft/20"
-                  style={{ animationDelay: `${index * 80}ms` }}
-                >
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gain">{row.label}</p>
-                    <p className="text-xs text-gain/80">{row.cardName}</p>
-                  </div>
-                  <span className="shrink-0 font-mono font-semibold tabular-nums text-gain">
-                    ${row.recommendedValue.toLocaleString()}/yr
-                  </span>
-                </li>
-              );
-            }
-
-            const valueChanged =
-              row.recommendedValue != null &&
-              row.recommendedValue !== row.currentValue;
-
-            return (
-              <li
-                key={row.key}
-                className="flex items-baseline justify-between gap-4 px-4 py-3 text-sm"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium">{row.label}</p>
-                  <p className="text-xs text-muted-foreground">{row.cardName}</p>
-                </div>
-                {valueChanged ? (
-                  <span className="shrink-0 text-right">
-                    <span className="block font-mono text-[13px] tabular-nums text-red-600 line-through decoration-2 decoration-red-600/80 dark:text-red-400">
-                      ${row.currentValue.toLocaleString()}/yr
-                    </span>
-                    <span className="block font-mono font-semibold tabular-nums">
-                      ${row.recommendedValue!.toLocaleString()}/yr
-                    </span>
-                  </span>
-                ) : (
-                  <span className="shrink-0 font-mono tabular-nums">
-                    ${row.currentValue.toLocaleString()}/yr
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <div className="flex items-center justify-between border-t border-border/60 bg-muted/15 px-4 py-3 text-sm">
-        <span className="text-muted-foreground">Benefits total</span>
-        {morphed && recommendedTotal !== currentTotal ? (
-          <span className="text-right">
-            <span className="block font-mono text-[13px] tabular-nums text-red-600 line-through decoration-2 dark:text-red-400">
-              ${currentTotal.toLocaleString()}/yr
-            </span>
-            <span className="block font-mono text-base font-semibold tabular-nums text-gain">
-              ${displayTotal.toLocaleString()}/yr
-            </span>
-          </span>
-        ) : (
-          <span className="font-mono text-base font-semibold tabular-nums text-gain">
-            ${displayTotal.toLocaleString()}/yr
-          </span>
-        )}
-      </div>
+    <div
+      aria-hidden
+      data-compare-sweep=""
+      className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-2xl"
+    >
+      <div className="compare-light-sweep" />
     </div>
   );
 }
 
-function RevealSwoosh({ active }: { active: boolean }) {
-  if (!active) return null;
+function ImprovedWash({
+  settle,
+  className,
+}: {
+  settle: boolean;
+  className: string;
+}) {
   return (
-    <div
-      key="swoosh"
-      className="compare-swoosh-band pointer-events-none absolute inset-y-0 left-0 z-20 w-1/3"
+    <span
       aria-hidden
-      style={{
-        background:
-          "linear-gradient(90deg, transparent 0%, oklch(0.72 0.12 145 / 0.15) 35%, oklch(0.55 0.14 45 / 0.55) 50%, oklch(0.72 0.12 145 / 0.2) 65%, transparent 100%)",
-        boxShadow: "0 0 40px oklch(0.55 0.14 45 / 0.35)",
-      }}
+      className={cn(
+        "pointer-events-none absolute -z-10 rounded-2xl border border-gain/70 bg-gain-soft",
+        settle && "compare-highlight-settle",
+        className
+      )}
     />
   );
 }
 
-function OverviewMoney({
-  current,
-  recommended,
-  morphed,
-  improvedWhen,
-  signed = false,
-  fee = false,
-  delay = 0,
-}: {
-  current: number;
-  recommended: number;
-  morphed: boolean;
-  improvedWhen: "higher" | "lower";
-  signed?: boolean;
-  fee?: boolean;
-  delay?: number;
-}) {
-  const changed = Math.round(current) !== Math.round(recommended);
-  const improved =
-    improvedWhen === "higher"
-      ? recommended > current
-      : recommended < current;
-  const format = (n: number) => {
-    const abs = `$${Math.abs(Math.round(n)).toLocaleString()}`;
-    if (fee) return `−${abs}`;
-    if (signed) return formatSignedMoney(n);
-    return abs;
-  };
+function prefersReducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
-  if (!morphed || !changed) {
-    return (
-      <span className="font-mono text-base font-semibold tabular-nums">
-        {format(morphed ? recommended : current)}
-      </span>
-    );
+/** Pooled rewards, benefits, and fees for every card in the view on screen. */
+function CardValueOverview({
+  rewards,
+  benefits,
+  annualFee,
+}: {
+  rewards: number;
+  benefits: number;
+  annualFee: number;
+}) {
+  const netValue = rewards + benefits - annualFee;
+  return (
+    <section className={inputStepFormGroupClassName}>
+      <h3 className={sectionTitleClass}>Card value</h3>
+      <ul className="mt-5 space-y-2 text-base font-medium">
+        <li className="flex justify-between gap-3">
+          <span className="text-muted-foreground">Rewards</span>
+          <span className="font-mono tabular-nums text-gain">
+            ${rewards.toLocaleString()}
+          </span>
+        </li>
+        <li className="flex justify-between gap-3">
+          <span className="text-muted-foreground">Benefits</span>
+          <span className="font-mono tabular-nums text-gain">
+            ${benefits.toLocaleString()}
+          </span>
+        </li>
+        <li className="flex justify-between gap-3">
+          <span className="text-muted-foreground">Annual fee</span>
+          <span className="font-mono tabular-nums">
+            −${annualFee.toLocaleString()}
+          </span>
+        </li>
+        <li className="flex items-baseline justify-between gap-3 border-t border-border/50 pt-2.5">
+          <span className="font-medium">Net / year</span>
+          <span
+            className={`font-mono text-xl font-semibold tabular-nums ${
+              netValue >= 0
+                ? "text-gain"
+                : "text-amber-700 dark:text-amber-400"
+            }`}
+          >
+            {formatSignedMoney(netValue)}
+          </span>
+        </li>
+      </ul>
+    </section>
+  );
+}
+
+function shownBenefits(
+  rows: BenefitRevealRow[],
+  view: CompareView
+): Array<{
+  key: string;
+  label: string;
+  cardName: string;
+  value: number;
+  isNew: boolean;
+}> {
+  if (view === "current") {
+    return rows
+      .filter((row) => row.kind !== "added")
+      .map((row) => ({
+        key: row.key,
+        label: row.label,
+        cardName: row.cardName,
+        value: row.currentValue,
+        isNew: false,
+      }));
   }
-
-  return (
-    <span
-      className="block space-y-0.5 text-right animate-in fade-in duration-500 fill-mode-both"
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      <span className="block font-mono text-[13px] tabular-nums text-red-600 line-through decoration-2 decoration-red-600/80 dark:text-red-400 dark:decoration-red-400/80">
-        {format(current)}
-      </span>
-      <span
-        className={`block font-mono text-base font-semibold tabular-nums ${
-          improved ? "text-gain" : "text-foreground"
-        }`}
-      >
-        {format(recommended)}
-      </span>
-    </span>
-  );
-}
-
-function OverviewRevealBox({
-  current,
-  recommended,
-  morphed,
-  rewardTypePreference,
-  onContinue,
-  constraintTradeoff,
-  alternativeNames = [],
-}: {
-  current: OverviewTotals;
-  recommended: OverviewTotals;
-  morphed: boolean;
-  rewardTypePreference: RewardTypePreference;
-  onContinue?: () => void;
-  constraintTradeoff?: ConstraintTradeoff;
-  alternativeNames?: string[];
-}) {
-  const pointsMode = showPointsAsPrimary(rewardTypePreference);
-  const currentRewardsDisplay = formatRewardsTotal(
-    current.rewards,
-    rewardTypePreference
-  );
-  const recommendedRewardsDisplay = formatRewardsTotal(
-    recommended.rewards,
-    rewardTypePreference
-  );
-  const rewardsChanged =
-    Math.round(current.rewards) !== Math.round(recommended.rewards);
-  const rewardsImproved = recommended.rewards > current.rewards;
-  const netGain = Math.round(recommended.net - current.net);
-  const gainDollars = `$${Math.abs(netGain).toLocaleString()}`;
-
-  return (
-    <div className="space-y-5">
-      <div className="relative overflow-hidden rounded-xl border border-border/70">
-        <RevealSwoosh active={morphed} />
-        <div className="border-b border-border/60 bg-muted/25 px-4 py-3">
-          <h3 className="text-base font-semibold tracking-tight">
-            {morphed && !constraintTradeoff && netGain >= 0
-              ? "Your upgraded overview"
-              : "Your current overview"}
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Rewards + benefits − annual fees
-            {pointsMode
-              ? ` · points shown at ${pointValueLabel()} sample`
-              : ""}
-          </p>
-        </div>
-        <ul className="divide-y divide-border/40">
-          <li className="flex items-baseline justify-between gap-4 px-4 py-4 text-sm">
-            <div className="min-w-0">
-              <p className="font-medium">Rewards</p>
-              <p className="text-xs text-muted-foreground">
-                Category earn from your spend
-              </p>
-            </div>
-            {morphed && rewardsChanged ? (
-              <span
-                className="shrink-0 space-y-0.5 text-right animate-in fade-in duration-500 fill-mode-both"
-                style={{ animationDelay: "0ms" }}
-              >
-                <span className="block font-mono text-[13px] tabular-nums text-red-600 line-through decoration-2 decoration-red-600/80 dark:text-red-400 dark:decoration-red-400/80">
-                  {currentRewardsDisplay.primary}
-                </span>
-                <span
-                  className={`block font-mono text-base font-semibold tabular-nums ${
-                    rewardsImproved ? "text-gain" : "text-foreground"
-                  }`}
-                >
-                  {recommendedRewardsDisplay.primary}
-                </span>
-              </span>
-            ) : (
-              <span className="shrink-0 font-mono text-base font-semibold tabular-nums">
-                {
-                  (morphed
-                    ? recommendedRewardsDisplay
-                    : currentRewardsDisplay
-                  ).primary
-                }
-              </span>
-            )}
-          </li>
-          <li className="flex items-baseline justify-between gap-4 px-4 py-4 text-sm">
-            <div className="min-w-0">
-              <p className="font-medium">Benefits</p>
-              <p className="text-xs text-muted-foreground">
-                Statement credits and dollar perks
-              </p>
-            </div>
-            <OverviewMoney
-              current={current.benefits}
-              recommended={recommended.benefits}
-              morphed={morphed}
-              improvedWhen="higher"
-              delay={80}
-            />
-          </li>
-          <li className="flex items-baseline justify-between gap-4 px-4 py-4 text-sm">
-            <div className="min-w-0">
-              <p className="font-medium">Annual fees</p>
-              <p className="text-xs text-muted-foreground">
-                Card fees subtracted from the total
-              </p>
-            </div>
-            <OverviewMoney
-              current={current.fees}
-              recommended={recommended.fees}
-              morphed={morphed}
-              improvedWhen="lower"
-              fee
-              delay={160}
-            />
-          </li>
-        </ul>
-        <div className="flex items-center justify-between border-t border-border/60 bg-muted/15 px-4 py-4">
-          <div>
-            <p className="text-sm font-medium">Net / year</p>
-            <p className="text-xs text-muted-foreground">
-              Rewards + benefits − fees
-            </p>
-          </div>
-          <OverviewMoney
-            current={current.net}
-            recommended={recommended.net}
-            morphed={morphed}
-            improvedWhen="higher"
-            signed
-            delay={240}
-          />
-        </div>
-      </div>
-
-      {morphed ? (
-        <div
-          className={`animate-in fade-in zoom-in-95 slide-in-from-bottom-3 rounded-[2rem] border-2 px-6 py-7 shadow-lg duration-700 fill-mode-both sm:px-10 sm:py-9 ${
-            constraintTradeoff
-              ? "border-amber-300/80 bg-amber-50 text-left dark:border-amber-700/50 dark:bg-amber-950/40"
-              : netGain > 0
-              ? "border-gain/40 bg-gain-soft text-center dark:border-gain/50 dark:bg-gain-soft/40"
-              : netGain < 0
-                ? "border-amber-300/80 bg-amber-50 text-center dark:border-amber-700/50 dark:bg-amber-950/40"
-                : "border-border bg-muted/40 text-center"
-          }`}
-          style={{ animationDelay: "320ms" }}
-        >
-          {constraintTradeoff ? (
-            <ConstraintTradeoffNote tradeoff={constraintTradeoff} />
-          ) : netGain > 0 ? (
-            <>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gain sm:text-base">
-                With the recommended stack
-              </p>
-              <p className="mt-3 text-balance text-3xl font-bold tracking-tight text-gain sm:text-5xl">
-                You’d be earning{" "}
-                <span className="font-mono tabular-nums">{gainDollars}</span>{" "}
-                more
-              </p>
-              <p className="mt-3 text-base text-gain/90 sm:text-lg">
-                per year versus your current wallet
-              </p>
-            </>
-          ) : netGain < 0 ? (
-            <div className="space-y-3 text-left">
-              <p className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
-                Keeping your current cards is the recommendation.
-              </p>
-              <p className="text-sm leading-relaxed text-foreground sm:text-base">
-                This stack costs about{" "}
-                <span className="font-semibold tabular-nums text-amber-700 dark:text-amber-400">
-                  {gainDollars}
-                </span>{" "}
-                a year versus keeping your current cards.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {rewardsFeesSplitSentence(
-                  recommended.rewards +
-                    recommended.benefits -
-                    (current.rewards + current.benefits),
-                  recommended.fees - current.fees
-                )}
-              </p>
-              {alternativeNames.length > 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  The search preferred {alternativeNames.join(", ")}.
-                </p>
-              ) : null}
-            </div>
-          ) : (
-            <>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:text-base">
-                With the recommended stack
-              </p>
-              <p className="mt-3 text-balance text-3xl font-bold tracking-tight sm:text-5xl">
-                About even on net value
-              </p>
-              <p className="mt-3 text-base text-muted-foreground sm:text-lg">
-                per year versus your current wallet
-              </p>
-            </>
-          )}
-        </div>
-      ) : null}
-
-      {morphed && onContinue ? (
-        <div
-          className="animate-in fade-in slide-in-from-bottom-2 space-y-4 rounded-[2rem] border border-border/70 bg-card px-6 py-8 text-center shadow-sm duration-700 fill-mode-both sm:px-10"
-          style={{ animationDelay: "480ms" }}
-        >
-          <p className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
-            Like what you see? Let’s make it happen!
-          </p>
-          <Button type="button" size="lg" onClick={onContinue}>
-            Continue
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-const STEP_META: Record<
-  RevealStep,
-  { index: string; loading: string; nextLabel: string }
-> = {
-  earnings: {
-    index: "1 of 3",
-    loading: "Finding better earn rates…",
-    nextLabel: "Continue to benefits",
-  },
-  benefits: {
-    index: "2 of 3",
-    loading: "Updating benefits…",
-    nextLabel: "Continue to overview",
-  },
-  overview: {
-    index: "3 of 3",
-    loading: "Crunching the net…",
-    nextLabel: "",
-  },
-};
-
-function SpendRevealTable({
-  rows,
-  benefitRows,
-  currentOverview,
-  recommendedOverview,
-  step,
-  phase,
-  showNextArrow,
-  rewardTypePreference,
-  constraintTradeoff,
-  onNext,
-  onBack,
-  onBackToStack,
-  onEditInputs,
-  onContinueToNextSteps,
-  alternativeNames = [],
-}: {
-  rows: RevealRow[];
-  benefitRows: BenefitRevealRow[];
-  currentOverview: OverviewTotals;
-  recommendedOverview: OverviewTotals;
-  step: RevealStep;
-  phase: "current" | "morph";
-  showNextArrow: boolean;
-  rewardTypePreference: RewardTypePreference;
-  constraintTradeoff?: ConstraintTradeoff;
-  onNext: () => void;
-  onBack: () => void;
-  onBackToStack: () => void;
-  onEditInputs: () => void;
-  onContinueToNextSteps: () => void;
-  alternativeNames?: string[];
-}) {
-  const morphed = phase === "morph";
-  const meta = STEP_META[step];
-  const currentTotal = rows.reduce((sum, r) => sum + r.current.annualReward, 0);
-  const recommendedTotal = rows.reduce(
-    (sum, r) => sum + (r.recommended?.annualReward ?? r.current.annualReward),
-    0
-  );
-  const totalDisplay = formatRewardsTotal(
-    morphed ? recommendedTotal : currentTotal,
-    rewardTypePreference
-  );
-  const totalImproved = morphed && recommendedTotal > currentTotal;
-  const overviewGap = Math.round(recommendedOverview.net - currentOverview.net);
-  const keepingCurrent = Boolean(constraintTradeoff) || overviewGap < 0;
-
-  const title =
-    keepingCurrent && morphed
-      ? step === "earnings"
-        ? "Your current earn rates"
-        : step === "benefits"
-          ? "Your current benefits"
-          : "Your current overview"
-      : step === "earnings"
-        ? morphed
-          ? "Your upgraded earn rates"
-          : "Your current spend"
-        : step === "benefits"
-          ? morphed
-            ? "Your upgraded benefits"
-            : "Your current benefits"
-          : morphed
-            ? "Your upgraded overview"
-            : "Your current overview";
-
-  const subtitle =
-    keepingCurrent && morphed
-      ? step === "earnings"
-        ? "These are the rates on the cards you're keeping."
-        : step === "benefits"
-          ? "These are the credits on the cards you're keeping."
-          : "Rewards + benefits − annual fees for the cards you're keeping."
-      : step === "earnings"
-        ? morphed
-          ? "Crossed-out values are what you earn today. Green values are the recommended stack for the same spend."
-          : "Category by category — how your current wallet covers your monthly spend."
-        : step === "benefits"
-          ? morphed
-            ? "Removed benefits are crossed out in red. New benefits show in green with the values you saved."
-            : "Statement credits and dollar benefits on the cards you hold today."
-          : morphed
-            ? "Crossed-out figures are your current wallet. Green shows where the recommended stack improves the math."
-            : "Rewards + benefits − annual fees for the cards you hold today.";
-
-  return (
-    <div className="relative mx-auto max-w-5xl">
-      {step !== "earnings" ? (
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Go back"
-          className="absolute left-0 top-1/2 z-30 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-card text-foreground shadow-md transition hover:bg-muted sm:-translate-x-full sm:left-0"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-      ) : null}
-      {showNextArrow ? (
-        <button
-          type="button"
-          onClick={onNext}
-          aria-label={meta.nextLabel}
-          className="absolute right-0 top-1/2 z-30 flex h-11 w-11 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-border/70 bg-card text-foreground shadow-md transition hover:bg-muted sm:translate-x-full sm:right-0"
-        >
-          <ArrowRight className="h-5 w-5" />
-        </button>
-      ) : null}
-
-      <div className="space-y-8 px-2 sm:px-6">
-        <header className="space-y-3 text-center sm:text-left">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-brand">
-            Comparison · {meta.index}
-          </p>
-          <div className="rounded-2xl border border-border/70 bg-card px-6 py-7 text-left sm:px-8 sm:py-8">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              {title}
-            </h2>
-          </div>
-          <p className="mx-auto max-w-2xl text-sm leading-relaxed text-muted-foreground sm:mx-0 sm:text-base">
-            {subtitle}
-          </p>
-          {phase === "current" ? (
-            <p className="animate-pulse text-sm font-medium text-muted-foreground">
-              {meta.loading}
-            </p>
-          ) : keepingCurrent ? (
-            <p className="animate-in fade-in text-sm font-medium text-amber-800 duration-500 dark:text-amber-300">
-              Keeping your current cards
-            </p>
-          ) : (
-            <p className="animate-in fade-in text-sm font-medium text-gain duration-500">
-              Upgrades applied
-            </p>
-          )}
-        </header>
-
-        {step === "earnings" ? (
-          rows.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
-              No monthly spend categories yet. Add spend on the inputs page to
-              see this breakdown.
-            </p>
-          ) : (
-            <div className="relative overflow-hidden rounded-xl border border-border/70">
-              <RevealSwoosh active={morphed} />
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[44rem] text-left text-sm">
-                  <thead className="border-b border-border/60 bg-muted/25 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-3 sm:px-4">Category</th>
-                      <th className="px-3 py-3 text-right sm:px-4">Monthly</th>
-                      <th className="px-3 py-3 text-right sm:px-4">Annual</th>
-                      <th className="px-3 py-3 sm:px-4">Card</th>
-                      <th className="px-3 py-3 text-right sm:px-4">Rate</th>
-                      <th className="px-3 py-3 text-right sm:px-4">
-                        Value / yr
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {rows.map((row, index) => {
-                      const showUpgrade =
-                        morphed && row.upgraded && row.recommended;
-                      return (
-                        <tr
-                          key={row.category}
-                          className={
-                            showUpgrade
-                              ? "animate-in fade-in zoom-in-95 slide-in-from-left-2 bg-gain-soft/40 duration-700 fill-mode-both dark:bg-gain-soft/20"
-                              : undefined
-                          }
-                          style={
-                            showUpgrade
-                              ? { animationDelay: `${index * 100}ms` }
-                              : undefined
-                          }
-                        >
-                          <td className="px-3 py-3 font-medium sm:px-4">
-                            {row.label}
-                          </td>
-                          <td className="px-3 py-3 text-right font-mono text-[13px] tabular-nums text-muted-foreground sm:px-4">
-                            ${row.monthlySpend.toLocaleString()}
-                          </td>
-                          <td className="px-3 py-3 text-right font-mono text-[13px] tabular-nums text-muted-foreground sm:px-4">
-                            ${row.annualSpend.toLocaleString()}
-                          </td>
-                          <td className="px-3 py-3 sm:px-4">
-                            {showUpgrade && row.recommended ? (
-                              <span className="block space-y-0.5">
-                                <span className="block font-semibold text-gain">
-                                  {row.recommended.cardName}
-                                </span>
-                                <span className="block text-xs text-red-600 line-through decoration-2 decoration-red-600/80 dark:text-red-400 dark:decoration-red-400/80">
-                                  was {row.current.cardName}
-                                </span>
-                              </span>
-                            ) : (
-                              <span className="font-medium">
-                                {(morphed && row.recommended
-                                  ? row.recommended
-                                  : row.current
-                                ).cardName}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-3 text-right font-mono text-[13px] tabular-nums sm:px-4">
-                            {showUpgrade && row.recommended ? (
-                              <span className="block space-y-0.5">
-                                <span className="block text-red-600 line-through decoration-2 decoration-red-600/80 dark:text-red-400 dark:decoration-red-400/80">
-                                  {row.current.multiplier}x
-                                </span>
-                                <span className="block animate-in fade-in slide-in-from-bottom-1 font-semibold text-gain duration-500 fill-mode-both">
-                                  {row.recommended.multiplier}x
-                                </span>
-                              </span>
-                            ) : (
-                              <span>{row.current.multiplier}x</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-3 sm:px-4">
-                            {showUpgrade && row.recommended ? (
-                              <span className="block space-y-1">
-                                <span className="block text-red-600 line-through decoration-2 decoration-red-600/80 dark:text-red-400 dark:decoration-red-400/80 [&_span]:text-red-600 dark:[&_span]:text-red-400">
-                                  <ValueCell
-                                    row={row.current}
-                                    preference={rewardTypePreference}
-                                  />
-                                </span>
-                                <span className="block animate-in fade-in slide-in-from-bottom-1 font-semibold text-gain duration-500 fill-mode-both">
-                                  <ValueCell
-                                    row={row.recommended}
-                                    preference={rewardTypePreference}
-                                  />
-                                </span>
-                              </span>
-                            ) : (
-                              <span className="text-gain">
-                                <ValueCell
-                                  row={row.current}
-                                  preference={rewardTypePreference}
-                                />
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot className="border-t border-border/60 bg-muted/15">
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-3 py-3 text-sm text-muted-foreground sm:px-4"
-                      >
-                        Category rewards total
-                      </td>
-                      <td className="px-3 py-3 text-right sm:px-4">
-                        {morphed && totalImproved ? (
-                          <span className="block space-y-1">
-                            <span className="block font-mono text-[13px] tabular-nums text-red-600 line-through decoration-2 decoration-red-600/80 dark:text-red-400 dark:decoration-red-400/80">
-                              {
-                                formatRewardsTotal(
-                                  currentTotal,
-                                  rewardTypePreference
-                                ).primary
-                              }
-                            </span>
-                            <span className="block font-mono text-base font-semibold tabular-nums text-gain">
-                              {totalDisplay.primary}
-                            </span>
-                          </span>
-                        ) : (
-                          <span
-                            className={`font-mono text-base font-semibold tabular-nums ${
-                              totalImproved ? "text-gain" : "text-foreground"
-                            }`}
-                          >
-                            {totalDisplay.primary}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          )
-        ) : step === "benefits" ? (
-          <BenefitsRevealBox
-            key={morphed ? "benefits-morphed" : "benefits-current"}
-            rows={benefitRows}
-            morphed={morphed}
-            keepingCurrent={keepingCurrent}
-          />
-        ) : (
-          <OverviewRevealBox
-            key={morphed ? "overview-morphed" : "overview-current"}
-            current={currentOverview}
-            recommended={recommendedOverview}
-            morphed={morphed}
-            rewardTypePreference={rewardTypePreference}
-            constraintTradeoff={constraintTradeoff}
-            alternativeNames={alternativeNames}
-            onContinue={onContinueToNextSteps}
-          />
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          {showNextArrow ? (
-            <Button type="button" variant="secondary" onClick={onNext}>
-              {meta.nextLabel}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          ) : null}
-          <Button type="button" variant="outline" onClick={onBackToStack}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to stack
-          </Button>
-          <Button type="button" variant="ghost" onClick={onEditInputs}>
-            Edit inputs
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+  return rows
+    .filter((row) => row.kind !== "removed")
+    .map((row) => ({
+      key: row.key,
+      label: row.label,
+      cardName: row.cardName,
+      value:
+        row.kind === "added"
+          ? row.recommendedValue
+          : (row.recommendedValue ?? row.currentValue),
+      isNew: row.kind === "added",
+    }));
 }
 
 export function ComparisonScreen({
@@ -1033,17 +342,36 @@ export function ComparisonScreen({
   onEditInputs,
   onContinueToNextSteps,
 }: ComparisonScreenProps) {
-  const rows = useMemo(
-    () =>
-      buildRevealRows(
-        result.currentRewardsBreakdown.categoryLines,
-        result.optimizedRewardsBreakdown.categoryLines
-      ),
-    [
-      result.currentRewardsBreakdown.categoryLines,
-      result.optimizedRewardsBreakdown.categoryLines,
-    ]
-  );
+  const [view, setView] = useState<CompareView>("current");
+  const [dazzling, setDazzling] = useState(false);
+  const dazzlePlayedRef = useRef(updatedDazzlePlayed);
+
+  useEffect(() => {
+    if (!dazzling) return;
+    const id = window.setTimeout(() => setDazzling(false), DAZZLE_MS);
+    return () => window.clearTimeout(id);
+  }, [dazzling]);
+
+  const selectView = (next: CompareView) => {
+    setView(next);
+    if (next !== "updated" || dazzlePlayedRef.current) return;
+    dazzlePlayedRef.current = true;
+    updatedDazzlePlayed = true;
+    if (prefersReducedMotion()) return;
+    setDazzling(true);
+  };
+
+  const earnLines = useMemo(() => {
+    const lines =
+      view === "updated"
+        ? result.optimizedRewardsBreakdown.categoryLines
+        : result.currentRewardsBreakdown.categoryLines;
+    return lines.filter((row) => row.monthlySpend > 0);
+  }, [
+    view,
+    result.currentRewardsBreakdown.categoryLines,
+    result.optimizedRewardsBreakdown.categoryLines,
+  ]);
 
   const benefitRows = useMemo(
     () =>
@@ -1052,148 +380,320 @@ export function ComparisonScreen({
         result.benefits,
         savedCards
       ),
-    [
-      result.currentRewardsBreakdown.perkLines,
-      result.benefits,
-      savedCards,
-    ]
+    [result.currentRewardsBreakdown.perkLines, result.benefits, savedCards]
   );
 
-  const currentOverview = useMemo<OverviewTotals>(() => {
-    const rewards = Math.round(result.currentRewardsBreakdown.categoryTotal);
-    const benefits = Math.max(
-      0,
-      Math.round(
-        result.totalCurrentEstimatedRewards -
-          result.currentRewardsBreakdown.categoryTotal
-      )
-    );
-    const fees = Math.round(result.totalCurrentAnnualFees);
-    return {
-      rewards,
-      benefits,
-      fees,
-      net: Math.round(result.currentNetPosition),
-    };
+  const improvedCategories = useMemo(() => {
+    const improved = new Set<SpendCategory>();
+    for (const row of result.optimizedRewardsBreakdown.categoryLines) {
+      if (isImprovedEarnRate(row, result.currentRewardsBreakdown.categoryLines)) {
+        improved.add(row.category);
+      }
+    }
+    return improved;
   }, [
-    result.currentRewardsBreakdown.categoryTotal,
-    result.totalCurrentEstimatedRewards,
-    result.totalCurrentAnnualFees,
-    result.currentNetPosition,
+    result.currentRewardsBreakdown.categoryLines,
+    result.optimizedRewardsBreakdown.categoryLines,
   ]);
 
-  const recommendedOverview = useMemo<OverviewTotals>(() => {
-    const rewards = Math.round(
-      savedCards.reduce((sum, c) => sum + c.rewardsDollars, 0)
-    );
-    const benefits = Math.round(
-      savedCards.reduce((sum, c) => sum + c.benefitsDollars, 0)
-    );
-    const fees = Math.round(
-      savedCards.reduce((sum, c) => sum + c.annualFee, 0)
-    );
-    const net = Math.round(
-      savedCards.reduce((sum, c) => sum + c.netDollars, 0)
-    );
-    return { rewards, benefits, fees, net };
-  }, [savedCards]);
-
-  const [step, setStep] = useState<RevealStep>("earnings");
-  const [earningsPhase, setEarningsPhase] = useState<"current" | "morph">(
-    rows.length === 0 ? "morph" : "current"
+  const benefits = shownBenefits(benefitRows, view);
+  const benefitsTotal = benefits.reduce((sum, row) => sum + row.value, 0);
+  const earningsTotal = earnLines.reduce(
+    (sum, row) => sum + row.annualReward,
+    0
   );
-  const [benefitsPhase, setBenefitsPhase] = useState<"current" | "morph">(
-    "current"
+  const annualFees =
+    view === "updated"
+      ? result.feesSubtotal
+      : result.totalCurrentAnnualFees;
+  const earningsDisplay = formatRewardsTotal(
+    earningsTotal,
+    rewardTypePreference
   );
-  const [overviewPhase, setOverviewPhase] = useState<"current" | "morph">(
-    "current"
+
+  const currentNet = Math.round(result.currentNetPosition);
+  const recommendedNet = Math.round(
+    savedCards.reduce((sum, card) => sum + card.netDollars, 0)
   );
-  const [earningsReady, setEarningsReady] = useState(rows.length === 0);
-  const [benefitsReady, setBenefitsReady] = useState(false);
-
-  // Earnings morph timer
-  useEffect(() => {
-    if (step !== "earnings") return;
-    if (earningsPhase !== "current") return;
-    if (rows.length === 0) {
-      setEarningsPhase("morph");
-      setEarningsReady(true);
-      return;
-    }
-    const t = window.setTimeout(() => setEarningsPhase("morph"), 1000);
-    return () => window.clearTimeout(t);
-  }, [step, earningsPhase, rows.length]);
-
-  useEffect(() => {
-    if (step !== "earnings" || earningsPhase !== "morph") return;
-    setEarningsReady(false);
-    const t = window.setTimeout(() => setEarningsReady(true), 900);
-    return () => window.clearTimeout(t);
-  }, [step, earningsPhase]);
-
-  // Benefits morph timer — starts fresh the first time you land on this step
-  useEffect(() => {
-    if (step !== "benefits") return;
-    if (benefitsPhase !== "current") return;
-    const t = window.setTimeout(() => setBenefitsPhase("morph"), 1000);
-    return () => window.clearTimeout(t);
-  }, [step, benefitsPhase]);
-
-  useEffect(() => {
-    if (step !== "benefits" || benefitsPhase !== "morph") return;
-    setBenefitsReady(false);
-    const t = window.setTimeout(() => setBenefitsReady(true), 900);
-    return () => window.clearTimeout(t);
-  }, [step, benefitsPhase]);
-
-  // Overview morph timer — starts from the top on first visit
-  useEffect(() => {
-    if (step !== "overview") return;
-    if (overviewPhase !== "current") return;
-    const t = window.setTimeout(() => setOverviewPhase("morph"), 1000);
-    return () => window.clearTimeout(t);
-  }, [step, overviewPhase]);
-
-  const goNext = () => {
-    if (step === "earnings") setStep("benefits");
-    else if (step === "benefits") setStep("overview");
-  };
-
-  const goBack = () => {
-    if (step === "overview") setStep("benefits");
-    else if (step === "benefits") setStep("earnings");
-  };
-
-  const activePhase =
-    step === "earnings"
-      ? earningsPhase
-      : step === "benefits"
-        ? benefitsPhase
-        : overviewPhase;
-  const showNext =
-    (step === "earnings" && earningsPhase === "morph" && earningsReady) ||
-    (step === "benefits" && benefitsPhase === "morph" && benefitsReady);
+  const netGain = recommendedNet - currentNet;
+  const gainDollars = `$${Math.abs(netGain).toLocaleString()}`;
+  const heading =
+    view === "current" ? "What you currently earn" : "Updated recommendations";
 
   return (
-    <SpendRevealTable
-      rows={rows}
-      benefitRows={benefitRows}
-      currentOverview={currentOverview}
-      recommendedOverview={recommendedOverview}
-      step={step}
-      phase={activePhase}
-      showNextArrow={showNext}
-      rewardTypePreference={rewardTypePreference}
-      constraintTradeoff={result.constraintTradeoff}
-      alternativeNames={
-        result.constraintTradeoff?.compliantStack.cardNames ??
-        savedCards.map((card) => card.cardName)
-      }
-      onNext={goNext}
-      onBack={goBack}
-      onBackToStack={onBackToStack}
-      onEditInputs={onEditInputs}
-      onContinueToNextSteps={onContinueToNextSteps}
-    />
+    <div className="mx-auto max-w-3xl space-y-10">
+      <div className="space-y-3">
+        <div
+          className={cn(
+            "relative rounded-2xl border border-border/70 bg-card px-6 py-7 sm:px-8 sm:py-8",
+            dazzling && "compare-dazzle-glow"
+          )}
+        >
+          <UpdatedReveal active={dazzling} />
+          <h2 className="relative text-3xl font-bold tracking-tight sm:text-4xl">
+            {heading}
+          </h2>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            aria-pressed={view === "current"}
+            onClick={() => selectView("current")}
+            className={`rounded-2xl border px-4 py-3 text-base font-semibold ${
+              view === "current"
+                ? "border-brand bg-brand-soft text-foreground"
+                : "border-border/70 bg-card text-foreground"
+            }`}
+          >
+            What you currently earn
+          </button>
+          <button
+            type="button"
+            aria-pressed={view === "updated"}
+            onClick={() => selectView("updated")}
+            className={`rounded-2xl border px-4 py-3 text-base font-semibold ${
+              view === "updated"
+                ? "border-brand bg-brand-soft text-foreground"
+                : "border-border/70 bg-card text-foreground"
+            }`}
+          >
+            Updated recommendations
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-10" data-compare-dazzle={dazzling ? "on" : "off"}>
+      <section
+        className={cn(
+          inputStepFormGroupClassName,
+          "relative",
+          dazzling && "compare-dazzle-glow"
+        )}
+      >
+        <UpdatedReveal active={dazzling} />
+        <h3 className={sectionTitleClass}>Earnings</h3>
+        {earnLines.length === 0 ? (
+          <p className="mt-5 text-base font-medium text-muted-foreground">
+            {earningsEmptyCopy(view, result)}
+          </p>
+        ) : (
+          <div className="mt-5">
+            <div
+              className={`${earnColumnsClass} border-b border-border/50 pb-3 text-base font-semibold text-muted-foreground`}
+            >
+              <span>Spending category</span>
+              <span>Card name</span>
+              <span className="sm:text-right">Earning rate</span>
+              <span className="sm:text-right">Total earnings</span>
+            </div>
+            <ul>
+              {earnLines.map((earnRow) => {
+                const earn = formatCategoryEarn(earnRow, rewardTypePreference);
+                const improved =
+                  view === "updated" && improvedCategories.has(earnRow.category);
+                return (
+                  <li
+                    key={earnRow.category}
+                    data-improved={improved ? "true" : undefined}
+                    className={cn("relative z-0", earnColumnsClass, "py-2.5")}
+                  >
+                    {improved ? (
+                      <ImprovedWash
+                        settle={dazzling}
+                        className="inset-x-0 inset-y-px"
+                      />
+                    ) : null}
+                    <span className="min-w-0 break-words text-base font-medium">
+                      {earnRow.label}
+                    </span>
+                    <span className="min-w-0 break-words text-base font-medium">
+                      {earnRow.cardName}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-base font-medium tabular-nums sm:text-right",
+                        improved && "text-gain"
+                      )}
+                    >
+                      {earnRow.multiplier}x
+                    </span>
+                    <span className="min-w-0 text-right text-base font-medium tabular-nums">
+                      <span className={cn("block", improved && "text-gain")}>
+                        {earn.primary}
+                      </span>
+                      {earn.secondary ? (
+                        <span className="block text-muted-foreground">
+                          {earn.secondary}
+                        </span>
+                      ) : null}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="flex items-baseline justify-between gap-4 border-t border-border/50 pt-3 text-base font-medium">
+              <span>Earnings total</span>
+              <span className="text-right tabular-nums">
+                <span className="block">{earningsDisplay.primary}</span>
+                {earningsDisplay.secondary ? (
+                  <span className="block text-muted-foreground">
+                    {earningsDisplay.secondary}
+                  </span>
+                ) : null}
+              </span>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section
+        className={cn(
+          inputStepFormGroupClassName,
+          "relative",
+          dazzling && "compare-dazzle-glow"
+        )}
+      >
+        <UpdatedReveal active={dazzling} />
+        <h3 className={sectionTitleClass}>Benefits</h3>
+        {benefits.length === 0 ? (
+          <p className="mt-5 text-base font-medium text-muted-foreground">
+            {view === "current"
+              ? "No dollar benefits counted on your current wallet."
+              : "No dollar benefits counted on the recommended stack."}
+          </p>
+        ) : (
+          <ul className="mt-5 space-y-4">
+            {benefits.map((row) => {
+              const description = benefitDescription(
+                row.cardName,
+                row.label,
+                result.benefits
+              );
+              const isNew = view === "updated" && row.isNew;
+              return (
+              <li
+                key={row.key}
+                data-improved={isNew ? "true" : undefined}
+                className="relative z-0 flex items-baseline justify-between gap-4 text-base font-medium"
+              >
+                {isNew ? (
+                  <ImprovedWash
+                    settle={dazzling}
+                    className="-inset-x-2 -inset-y-1.5"
+                  />
+                ) : null}
+                <div className="min-w-0">
+                  <p>
+                    {row.label}
+                    {description ? (
+                      <span className="ml-1.5 inline-flex align-middle">
+                        <FieldHelp
+                          id={`compare-benefit-${row.key.replace(/[^A-Za-z0-9_-]+/g, "-")}`}
+                          title={row.label}
+                          icon="exclamation"
+                        >
+                          {description}
+                        </FieldHelp>
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="text-muted-foreground">{row.cardName}</p>
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 font-mono tabular-nums",
+                    isNew && "text-gain"
+                  )}
+                >
+                  ${row.value.toLocaleString()}/yr
+                </span>
+              </li>
+              );
+            })}
+            <li className="flex items-baseline justify-between gap-4 border-t border-border/50 pt-4 text-base font-medium">
+              <span>Benefits total</span>
+              <span className="font-mono tabular-nums">
+                ${benefitsTotal.toLocaleString()}/yr
+              </span>
+            </li>
+          </ul>
+        )}
+      </section>
+
+      <CardValueOverview
+        rewards={Math.round(earningsTotal)}
+        benefits={benefitsTotal}
+        annualFee={annualFees}
+      />
+      </div>
+
+      {view === "updated" ? (
+      <div className="space-y-5">
+        <section
+          className={`rounded-[2rem] border-2 px-6 py-7 text-center shadow-lg sm:px-10 sm:py-9 ${
+            netGain > 0
+              ? "border-gain/40 bg-gain-soft dark:border-gain/50 dark:bg-gain-soft/40"
+              : netGain < 0
+                ? "border-amber-300/80 bg-amber-50 dark:border-amber-700/50 dark:bg-amber-950/40"
+                : "border-border bg-muted/40"
+          }`}
+        >
+          <p
+            className={`text-sm font-semibold uppercase tracking-[0.18em] sm:text-base ${
+              netGain > 0 ? "text-gain" : "text-muted-foreground"
+            }`}
+          >
+            With the recommended stack
+          </p>
+          <p
+            className={`mt-3 text-balance text-3xl font-bold tracking-tight sm:text-5xl ${
+              netGain > 0 ? "text-gain" : "text-foreground"
+            }`}
+          >
+            You’d be earning{" "}
+            <span className="font-mono tabular-nums">{gainDollars}</span>{" "}
+            {netGain >= 0 ? "more" : "less"}
+          </p>
+          <p
+            className={`mt-3 text-base sm:text-lg ${
+              netGain > 0 ? "text-gain/90" : "text-muted-foreground"
+            }`}
+          >
+            per year versus your current wallet
+          </p>
+        </section>
+        <section className="space-y-4 rounded-[2rem] border border-border/70 bg-card px-6 py-8 text-center shadow-sm sm:px-10">
+          <p className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
+            Like what you see? Let’s make it happen!
+          </p>
+          <Button type="button" size="lg" onClick={onContinueToNextSteps}>
+            Continue
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </section>
+      </div>
+      ) : null}
+
+      <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-6">
+        <Button
+          type="button"
+          variant="ghost"
+          className={footerButtonClass}
+          onClick={onBackToStack}
+        >
+          <ArrowLeft className="mr-2 size-5" />
+          Back to stack
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className={footerButtonClass}
+          onClick={onEditInputs}
+        >
+          Inputs
+        </Button>
+      </div>
+    </div>
   );
 }

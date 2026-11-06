@@ -59,7 +59,7 @@ interface SpendingInputsProps {
 
 const fieldLabelClass = "text-base font-medium";
 const fieldInputClass =
-  "h-11 min-h-11 rounded-xl px-3 pl-7 text-base font-medium md:text-base";
+  "h-11 min-h-11 rounded-xl border-white/35 bg-[oklch(0.34_0.03_285)] px-3 pl-7 text-base font-medium hover:bg-[oklch(0.38_0.03_285)] md:text-base dark:border-white/35 dark:bg-[oklch(0.34_0.03_285)] dark:hover:bg-[oklch(0.38_0.03_285)]";
 const boxHeaderClass =
   "min-w-0 text-lg font-bold tracking-tight break-words sm:text-xl";
 

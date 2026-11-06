@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect } from "react";
 import { Info } from "lucide-react";
+import { AnswerSelect, MultiAnswerSelect } from "@/components/inputs/AnswerSelect";
 import { FieldHelp } from "@/components/inputs/FieldHelp";
 import { InputStepLayout, inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   CONCRETE_REWARDS_STRATEGIES,
   ISSUER_ECOSYSTEM_OPTIONS,
@@ -12,17 +12,12 @@ import {
   MAX_CARDS_OPTIONS,
   REWARD_TYPE_OPTIONS,
   REWARDS_STRATEGY_OPTIONS,
-  activeLoyaltyPrograms,
   ecosystemLabel,
   getKeptCardsOutsidePreferredEcosystems,
   isEcosystemFilterActive,
-  isNoPreferenceStrategies,
-  loyaltyProgramLabel,
 } from "@/lib/constants";
-import { cn } from "@/lib/utils";
 import type {
   LoyaltyProgramSelection,
-  MaxCards,
   PreferredEcosystem,
   RewardTypePreference,
   RewardsStrategy,
@@ -40,36 +35,6 @@ interface PreferencesStepProps {
   cards: UserCreditCard[];
   preferences: UserPreferences;
   onChange: (preferences: UserPreferences) => void;
-}
-
-/** Single-choice rows. Scoped here so Wallet, Spend, and Benefits stay unchanged. */
-const choiceRowClass =
-  "flex h-11 min-h-11 w-full items-center rounded-xl border px-4 text-left text-base font-medium transition-colors";
-
-function choiceRowState(selected: boolean) {
-  return selected
-    ? "border-brand bg-brand-soft text-foreground"
-    : "border-white/10 bg-white/[0.04] text-foreground hover:border-white/20";
-}
-
-function ChoiceButton({
-  selected,
-  onClick,
-  children,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(choiceRowClass, choiceRowState(selected))}
-    >
-      {children}
-    </button>
-  );
 }
 
 /** Both concrete strategies mean every option is open, so select No preference. */
@@ -100,58 +65,18 @@ function displayedStrategies(
   return collapseFullStrategySelection(list);
 }
 
-function strategiesSummary(strategies: RewardsStrategy[]): string {
-  if (isNoPreferenceStrategies(strategies)) {
-    return "Any rewards strategy";
+function applySelectionChange<T extends string>(
+  previous: readonly T[],
+  next: readonly T[],
+  onToggle: (value: T, checked: boolean) => void
+) {
+  const added = next.find((item) => !previous.includes(item));
+  if (added) {
+    onToggle(added, true);
+    return;
   }
-  return strategies
-    .map(
-      (s) =>
-        REWARDS_STRATEGY_OPTIONS.find((o) => o.value === s)?.label ?? s
-    )
-    .join(", ");
-}
-
-function buildRulesSummary(preferences: UserPreferences): string[] {
-  const programs = activeLoyaltyPrograms(preferences.preferredLoyaltyPrograms);
-  const lines: string[] = [`Up to ${preferences.maxCards} cards`];
-
-  const rewardLabel =
-    REWARD_TYPE_OPTIONS.find(
-      (o) => o.value === preferences.rewardTypePreference
-    )?.label ?? "No preference";
-  lines.push(rewardLabel);
-
-  if (
-    preferences.preferredEcosystems.includes("flexible") ||
-    preferences.preferredEcosystems.length === 0
-  ) {
-    lines.push("No bank preference");
-  } else if (preferences.preferredEcosystems.length === 1) {
-    lines.push(
-      `${ecosystemLabel(preferences.preferredEcosystems[0])} bank`
-    );
-  } else {
-    lines.push(
-      preferences.preferredEcosystems.map((e) => ecosystemLabel(e)).join(", ")
-    );
-  }
-
-  if (preferences.rewardTypePreference === "cashback") {
-    return lines;
-  }
-
-  lines.push(strategiesSummary(displayedStrategies(preferences.rewardsStrategies)));
-
-  if (programs.length === 0) {
-    lines.push("No airline/hotel program preference");
-  } else {
-    lines.push(
-      `Prefer ${programs.map((p) => loyaltyProgramLabel(p)).join(", ")} (role-aware)`
-    );
-  }
-
-  return lines;
+  const removed = previous.find((item) => !next.includes(item));
+  if (removed) onToggle(removed, false);
 }
 
 export function PreferencesStep({
@@ -261,8 +186,6 @@ export function PreferencesStep({
     preferences.rewardTypePreference === "points" ||
     preferences.rewardTypePreference === "no_preference";
 
-  const rules = buildRulesSummary(preferences);
-
   return (
     <InputStepLayout
       heading="What are your hard constraints?"
@@ -276,72 +199,40 @@ export function PreferencesStep({
         <div className="mt-5 space-y-5">
       <div className="space-y-4">
         <div>
-          <h4 className="mt-2 text-base font-semibold">
+          <h4 className="text-base font-medium">
             How many cards are you willing to manage?
           </h4>
         </div>
-        <div className="grid gap-2">
-          {MAX_CARDS_OPTIONS.map((option) => (
-            <ChoiceButton
-              key={option.value}
-              selected={preferences.maxCards === option.value}
-              onClick={() => set("maxCards", option.value as MaxCards)}
-            >
-              {option.label}
-            </ChoiceButton>
-          ))}
-        </div>
+        <AnswerSelect
+          label="How many cards are you willing to manage?"
+          value={preferences.maxCards}
+          options={MAX_CARDS_OPTIONS}
+          onValueChange={(value) => set("maxCards", value)}
+        />
       </div>
 
       <div className="space-y-4">
         <div>
-          <h4 className="mt-2 text-base font-semibold">
+          <h4 className="text-base font-medium">
             What rewards bank(s) are you willing to use?
           </h4>
         </div>
-        <div className="grid gap-2">
-          <label
-            htmlFor="eco-no-preference"
-            className={cn(
-              choiceRowClass,
-              "cursor-pointer gap-3",
-              choiceRowState(isFlexible)
-            )}
-          >
-            <Checkbox
-              id="eco-no-preference"
-              checked={isFlexible}
-              onCheckedChange={(state) =>
-                toggleNoBankPreference(state === true)
-              }
-            />
-            <span className="text-base font-medium">No preference</span>
-          </label>
-          {ISSUER_ECOSYSTEM_OPTIONS.map((option) => {
-            const checked =
-              !isFlexible && selectedIssuers.includes(option.value);
-            return (
-              <label
-                key={option.value}
-                htmlFor={`eco-${option.value}`}
-                className={cn(
-                  choiceRowClass,
-                  "cursor-pointer gap-3",
-                  choiceRowState(checked)
-                )}
-              >
-                <Checkbox
-                  id={`eco-${option.value}`}
-                  checked={checked}
-                  onCheckedChange={(state) =>
-                    toggleIssuer(option.value, state === true)
-                  }
-                />
-                <span className="text-base font-medium">{option.label}</span>
-              </label>
-            );
-          })}
-        </div>
+        <MultiAnswerSelect
+          label="What rewards bank(s) are you willing to use?"
+          value={isFlexible ? ["flexible"] : selectedIssuers}
+          options={[
+            { value: "flexible" as const, label: "No preference" },
+            ...ISSUER_ECOSYSTEM_OPTIONS,
+          ]}
+          emptyLabel="No preference"
+          onValueChange={(next) => {
+            const previous = isFlexible ? ["flexible" as const] : selectedIssuers;
+            applySelectionChange(previous, next, (value, checked) => {
+              if (value === "flexible") toggleNoBankPreference(checked);
+              else toggleIssuer(value, checked);
+            });
+          }}
+        />
         {mismatchedKeptCards.length > 0 &&
           isEcosystemFilterActive(preferences.preferredEcosystems) && (
             <div className="flex gap-3 rounded-lg border border-amber-200/80 bg-amber-50/90 px-3 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
@@ -363,78 +254,68 @@ export function PreferencesStep({
         <div className="mt-5 space-y-5">
       <div className="space-y-4">
         <div>
-          <h4 className="mt-2 text-base font-semibold">
+          <h4 className="text-base font-medium">
             How do you want to earn rewards?
           </h4>
         </div>
-        <div className="grid gap-2">
-          {REWARD_TYPE_OPTIONS.map((option) => (
-            <ChoiceButton
-              key={option.value}
-              selected={preferences.rewardTypePreference === option.value}
-              onClick={() => setRewardType(option.value)}
-            >
-              {option.label}
-            </ChoiceButton>
-          ))}
-        </div>
+        <AnswerSelect
+          label="How do you want to earn rewards?"
+          value={preferences.rewardTypePreference}
+          options={REWARD_TYPE_OPTIONS}
+          onValueChange={setRewardType}
+        />
       </div>
 
       {showPointsSections && (
         <>
           <div className="space-y-4">
             <div>
-              <h4 className="mt-2 text-base font-semibold">
+              <h4 className="text-base font-medium">
                 Which rewards strategies are you willing to use?
               </h4>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-base font-medium text-muted-foreground">
                 Select all that apply.
               </p>
             </div>
-            <div className="grid gap-2">
-              {REWARDS_STRATEGY_OPTIONS.map((option) => {
-                const checked = selectedStrategies.includes(option.value);
-                return (
-                  <label
-                    key={option.value}
-                    htmlFor={`strategy-${option.value}`}
-                    className={cn(
-                      choiceRowClass,
-                      "cursor-pointer gap-3",
-                      choiceRowState(checked)
-                    )}
+            <MultiAnswerSelect
+              label="Which rewards strategies are you willing to use?"
+              value={selectedStrategies}
+              options={REWARDS_STRATEGY_OPTIONS}
+              emptyLabel="No preference"
+              onValueChange={(next) => {
+                applySelectionChange(selectedStrategies, next, toggleStrategy);
+              }}
+              renderOption={(option) => (
+                <span className="inline-flex min-w-0 items-center">
+                  {option.label}
+                  <span
+                    className="ml-1.5 inline-flex"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
                   >
-                    <Checkbox
-                      id={`strategy-${option.value}`}
-                      checked={checked}
-                      onCheckedChange={(state) =>
-                        toggleStrategy(option.value, state === true)
-                      }
-                    />
-                    <span className="min-w-0 leading-snug">
-                      {option.label}
-                      <span
-                        className="ml-1.5 inline-flex align-middle"
-                        onClick={(event) => event.preventDefault()}
-                      >
-                        <FieldHelp
-                          id={`strategy-${option.value}-help`}
-                          title={option.label}
-                          icon="exclamation"
-                        >
-                          {`Different cards in your wallet can use different strategies. ${option.description}`}
-                        </FieldHelp>
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
+                    <FieldHelp
+                      id={`strategy-${option.value}-help`}
+                      title={option.label}
+                      icon="exclamation"
+                    >
+                      {`Different cards in your wallet can use different strategies. ${
+                        REWARDS_STRATEGY_OPTIONS.find(
+                          (item) => item.value === option.value
+                        )?.description ?? ""
+                      }`}
+                    </FieldHelp>
+                  </span>
+                </span>
+              )}
+            />
           </div>
 
           <div id="loyalty-programs" className="space-y-4">
             <div>
-              <h4 className="mt-2 text-base font-semibold leading-snug">
+              <h4 className="text-base font-medium leading-snug">
                 Are there any airline or hotel programs you specifically want
                 to earn rewards with?
                 <span className="ml-1.5 inline-flex align-middle">
@@ -449,49 +330,25 @@ export function PreferencesStep({
                   </FieldHelp>
                 </span>
               </h4>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-base font-medium text-muted-foreground">
                 Select all that apply.
               </p>
             </div>
-            <div className="grid gap-2">
-              {LOYALTY_PROGRAM_OPTIONS.map((option) => {
-                const checked = selectedPrograms.includes(option.value);
-                return (
-                  <label
-                    key={option.value}
-                    htmlFor={`loyalty-${option.value}`}
-                    className={cn(
-                      choiceRowClass,
-                      "cursor-pointer gap-3",
-                      choiceRowState(checked)
-                    )}
-                  >
-                    <Checkbox
-                      id={`loyalty-${option.value}`}
-                      checked={checked}
-                      onCheckedChange={(state) =>
-                        toggleProgram(option.value, state === true)
-                      }
-                    />
-                    <span className="min-w-0 leading-snug">{option.label}</span>
-                  </label>
-                );
-              })}
-            </div>
+            <MultiAnswerSelect
+              label="Are there any airline or hotel programs you specifically want to earn rewards with?"
+              value={selectedPrograms}
+              options={LOYALTY_PROGRAM_OPTIONS}
+              emptyLabel="No airline/hotel program preference"
+              onValueChange={(next) => {
+                applySelectionChange(selectedPrograms, next, toggleProgram);
+              }}
+            />
           </div>
         </>
       )}
         </div>
       </div>
 
-      <div className="space-y-3 rounded-xl border border-border/70 bg-muted/20 px-5 py-6">
-        <h4 className="text-base font-semibold tracking-tight">Your Rules</h4>
-        <ul className="space-y-1.5 text-sm text-foreground">
-          {rules.map((line, index) => (
-            <li key={`${index}-${line}`}>• {line}</li>
-          ))}
-        </ul>
-      </div>
       </div>
     </InputStepLayout>
   );

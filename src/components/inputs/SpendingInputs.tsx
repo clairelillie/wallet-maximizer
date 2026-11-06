@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { FieldHelp } from "@/components/inputs/FieldHelp";
 import { inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
 import { Input } from "@/components/ui/input";
+import { fieldControlClassName } from "@/components/ui/surfaces";
 import { Label } from "@/components/ui/label";
 import type { MonthlySpending } from "@/types";
 
@@ -52,14 +53,39 @@ const OTHER_SPEND_FIELDS: {
   { key: "other", label: "Everything else" },
 ];
 
+const ALL_SPEND_FIELDS = [
+  ...FOOD_SPEND_FIELDS,
+  ...TRAVEL_SPEND_FIELDS,
+  ...OTHER_SPEND_FIELDS,
+];
+
+/** Sum every category on this page, in cents, so typed decimals stay exact. */
+function monthlySpendCents(spending: MonthlySpending): number {
+  return ALL_SPEND_FIELDS.reduce((total, { key }) => {
+    const amount = spending[key];
+    const cents = Number.isFinite(amount) ? Math.round(amount * 100) : 0;
+    return total + cents;
+  }, 0);
+}
+
+/** "$1,950", or "$10.5" / "$10.05" when the sum includes cents. */
+function formatSpendTotal(cents: number): string {
+  const sign = cents < 0 ? "-" : "";
+  const abs = Math.abs(cents);
+  const whole = Math.trunc(abs / 100).toLocaleString("en-US");
+  const fraction = abs % 100;
+  if (fraction === 0) return `${sign}$${whole}`;
+  const frac = String(fraction).padStart(2, "0").replace(/0$/, "");
+  return `${sign}$${whole}.${frac}`;
+}
+
 interface SpendingInputsProps {
   spending: MonthlySpending;
   onChange: (spending: MonthlySpending) => void;
 }
 
 const fieldLabelClass = "text-base font-medium";
-const fieldInputClass =
-  "h-11 min-h-11 rounded-xl border-white/35 bg-[oklch(0.34_0.03_285)] px-3 pl-7 text-base font-medium hover:bg-[oklch(0.38_0.03_285)] md:text-base dark:border-white/35 dark:bg-[oklch(0.34_0.03_285)] dark:hover:bg-[oklch(0.38_0.03_285)]";
+const fieldInputClass = `${fieldControlClassName} pl-7`;
 const boxHeaderClass =
   "min-w-0 text-lg font-bold tracking-tight break-words sm:text-xl";
 
@@ -115,6 +141,23 @@ function SpendField({
   );
 }
 
+function SpendTotal({ spending }: { spending: MonthlySpending }) {
+  const amount = formatSpendTotal(monthlySpendCents(spending));
+
+  return (
+    <div className={inputStepFormGroupClassName}>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-lg font-semibold tracking-tight">
+          Monthly total
+        </span>
+        <span className="shrink-0 text-right font-mono text-xl font-semibold tabular-nums">
+          {amount}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function renderSpendFields(
   fields: ReadonlyArray<{
     key: keyof MonthlySpending;
@@ -135,7 +178,7 @@ function renderSpendFields(
             title="Everything else"
             icon="exclamation"
           >
-            Non-category spend — utilities, subscriptions, misc.
+            Utilities, subscriptions, and other purchases that do not fit a category above.
           </FieldHelp>
         ) : undefined
       }
@@ -173,6 +216,8 @@ export function SpendingInputs({ spending, onChange }: SpendingInputsProps) {
           {renderSpendFields(OTHER_SPEND_FIELDS, spending, onChange)}
         </div>
       </div>
+
+      <SpendTotal spending={spending} />
     </div>
   );
 }

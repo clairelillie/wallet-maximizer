@@ -3,23 +3,17 @@
 import { cn } from "@/lib/utils";
 
 export type AppScreen =
+  | "landing"
   | "input"
   | "calculating"
   | "stack"
-  | "compare"
-  | "nextSteps";
+  | "compare";
 
-const BASE_SCREENS: Array<{ id: AppScreen; label: string; step: string }> = [
+const SCREENS: Array<{ id: AppScreen; label: string; step: string }> = [
   { id: "input", label: "Spend & benefits", step: "1" },
-  { id: "stack", label: "Your recommended stack", step: "2" },
+  { id: "stack", label: "Your wallet", step: "2" },
   { id: "compare", label: "Compare", step: "3" },
 ];
-
-const NEXT_STEPS_SCREEN = {
-  id: "nextSteps" as const,
-  label: "Next steps",
-  step: "4",
-};
 
 interface ScreenNavProps {
   screen: AppScreen;
@@ -27,8 +21,6 @@ interface ScreenNavProps {
   resultsReady: boolean;
   /** Compare stays locked until every recommended card is saved. */
   compareReady: boolean;
-  /** Show Step 4 only after the user continues from Compare’s CTA. */
-  showNextSteps: boolean;
 }
 
 export function ScreenNav({
@@ -36,22 +28,12 @@ export function ScreenNav({
   onChange,
   resultsReady,
   compareReady,
-  showNextSteps,
 }: ScreenNavProps) {
-  const screens = showNextSteps
-    ? [...BASE_SCREENS, NEXT_STEPS_SCREEN]
-    : BASE_SCREENS;
-
   return (
-    <nav className="border-b border-white/8 bg-background/40 backdrop-blur-sm">
+    <nav className="border-b border-border/80 bg-background/60 backdrop-blur-sm">
       <div className="px-4 sm:px-6">
-      <div
-        className={cn(
-          "mx-auto grid w-full max-w-3xl",
-          screens.length === 4 ? "grid-cols-4" : "grid-cols-3"
-        )}
-      >
-        {screens.map((item) => {
+      <div className="mx-auto grid w-full max-w-3xl grid-cols-3">
+        {SCREENS.map((item) => {
           const locked =
             item.id === "compare"
               ? !compareReady
@@ -66,7 +48,7 @@ export function ScreenNav({
               disabled={locked}
               onClick={() => onChange(item.id)}
               className={cn(
-                "relative flex flex-col items-center justify-center gap-0.5 px-2 py-3 text-center transition-colors",
+                "relative flex flex-col items-center justify-start gap-1 px-1 pb-3 pt-2.5 text-center transition-colors sm:px-2 sm:py-3",
                 active
                   ? "text-foreground"
                   : locked
@@ -74,14 +56,14 @@ export function ScreenNav({
                     : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className="text-[11px] font-medium uppercase tracking-[0.14em]">
+              <span className="text-[10px] font-medium uppercase tracking-[0.12em] sm:text-[11px] sm:tracking-[0.14em]">
                 Step {item.step}
               </span>
-              <span className="text-sm font-semibold tracking-tight sm:text-base">
+              <span className="flex h-9 items-start justify-center text-balance text-[13px] font-semibold leading-tight tracking-tight sm:h-6 sm:items-center sm:text-base">
                 {item.label}
               </span>
               {active && (
-                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-brand shadow-[0_0_12px_oklch(0.67_0.18_295/0.8)]" />
+                <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-primary sm:inset-x-8" />
               )}
             </button>
           );

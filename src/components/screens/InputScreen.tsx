@@ -8,6 +8,10 @@ import { InputStepLayout } from "@/components/inputs/InputStepLayout";
 import { PreferencesStep } from "@/components/inputs/PreferencesStep";
 import { SpendingInputs } from "@/components/inputs/SpendingInputs";
 import { Button } from "@/components/ui/button";
+import {
+  stepActionButtonClassName,
+  stepActionsClassName,
+} from "@/components/ui/surfaces";
 import type {
   MonthlySpending,
   UserCreditCard,
@@ -22,9 +26,6 @@ const INPUT_STEPS: Array<{ id: InputStep; label: string }> = [
   { id: "benefits", label: "Benefits" },
   { id: "preferences", label: "Preferences" },
 ];
-
-const footerButtonClass =
-  "h-14 min-h-14 rounded-2xl px-6 text-base font-semibold sm:h-16 sm:min-h-16 sm:px-8";
 
 interface InputScreenProps {
   cards: UserCreditCard[];
@@ -95,7 +96,7 @@ export function InputScreen({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div className="grid grid-cols-4 gap-3 lg:px-6">
+      <div className="grid grid-cols-2 gap-2 min-[380px]:grid-cols-4 min-[380px]:gap-1.5 sm:gap-3 lg:px-6">
         {INPUT_STEPS.map((item, index) => {
           const active = item.id === step;
           const done = index < stepIndex;
@@ -104,12 +105,12 @@ export function InputScreen({
               key={item.id}
               type="button"
               onClick={() => setStep(item.id)}
-              className={`flex min-h-14 items-center justify-center rounded-2xl px-2 py-3 text-center text-xs font-semibold leading-tight tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:min-h-16 sm:px-4 sm:text-base ${
+              className={`flex min-h-11 items-center justify-center rounded-xl px-2 py-2.5 text-center text-sm font-semibold leading-tight tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 ${
                 active
-                  ? "bg-brand text-white shadow-[0_0_18px_oklch(0.67_0.18_295/0.35)]"
+                  ? "bg-primary text-primary-foreground"
                   : done
-                    ? "bg-brand-soft text-foreground"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
+                    ? "bg-white/10 text-foreground"
+                    : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
               }`}
             >
               {item.label}
@@ -122,11 +123,7 @@ export function InputScreen({
         {step === "wallet" && (
           <InputStepLayout
             heading="What cards do you already have?"
-            instructions={[
-              "Enter in the credit cards you already own.",
-              "If your bank and/or specific card is not listed, please manually enter the details yourself.",
-              "Tell us if one of your current cards is a must-keep, we will only recommend you cards that complement it.",
-            ]}
+            description="List the cards you already have. If a bank or card isn’t listed, enter it yourself, and mark any card you want to keep so recommendations work around it."
           >
             <CreditCardList
               cards={cards}
@@ -140,9 +137,7 @@ export function InputScreen({
         {step === "spend" && (
           <InputStepLayout
             heading="How much do you spend each month?"
-            instructions={[
-              "Enter in monthly spend estimates for each of the categories below.",
-            ]}
+            description="Add a rough monthly estimate for each spending category."
           >
             <SpendingInputs spending={spending} onChange={onSpendingChange} />
           </InputStepLayout>
@@ -166,11 +161,11 @@ export function InputScreen({
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-6">
+      <div className={stepActionsClassName}>
         <Button
           type="button"
           variant="ghost"
-          className={footerButtonClass}
+          className={stepActionButtonClassName}
           onClick={goBack}
           disabled={step === "wallet"}
         >
@@ -180,14 +175,18 @@ export function InputScreen({
         {step === "preferences" ? (
           <Button
             type="button"
-            className={footerButtonClass}
+            className={`${stepActionButtonClassName} sm:ml-auto`}
             onClick={onCalculate}
           >
-            Show me my recommendations
+            See my recommendations
             <ArrowRight className="ml-2 size-5" />
           </Button>
         ) : (
-          <Button type="button" className={footerButtonClass} onClick={goNext}>
+          <Button
+            type="button"
+            className={`${stepActionButtonClassName} sm:ml-auto`}
+            onClick={goNext}
+          >
             Continue
             <ArrowRight className="ml-2 size-5" />
           </Button>

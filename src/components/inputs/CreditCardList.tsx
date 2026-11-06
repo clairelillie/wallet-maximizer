@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { fullWidthActionClassName } from "@/components/ui/surfaces";
 import { CreditCardForm } from "./CreditCardForm";
 import { EmptyWalletDialog } from "./EmptyWalletDialog";
 import type { UserCreditCard } from "@/types";
@@ -13,9 +14,6 @@ interface CreditCardListProps {
   onUpdate: (id: string, patch: Partial<UserCreditCard>) => void;
   onRemove: (id: string) => void;
 }
-
-const addButtonClass =
-  "h-14 min-h-14 w-full rounded-2xl px-6 text-base font-semibold sm:h-16 sm:min-h-16";
 
 export function CreditCardList({
   cards,
@@ -41,10 +39,10 @@ export function CreditCardList({
         <div className="rounded-2xl border border-dashed border-border/70 bg-card px-5 py-8 text-center sm:px-6">
           <p className="text-base font-medium">No credit cards yet</p>
           <p className="mt-1.5 text-base font-medium leading-relaxed text-muted-foreground">
-            That’s fine — we’ll recommend a starter stack from your spend and
-            habits. Add a card anytime if you already have one.
+            You can continue from spending alone, and we’ll suggest a starting
+            stack. Add a card if you already have one.
           </p>
-          <Button type="button" className={`mt-5 ${addButtonClass}`} onClick={onAdd}>
+          <Button type="button" className={`mt-5 ${fullWidthActionClassName}`} onClick={onAdd}>
             <Plus className="mr-2 size-5" />
             Add a card
           </Button>
@@ -64,7 +62,7 @@ export function CreditCardList({
           <Button
             type="button"
             variant="outline"
-            className={addButtonClass}
+            className={fullWidthActionClassName}
             onClick={onAdd}
           >
             <Plus className="mr-2 size-5" />

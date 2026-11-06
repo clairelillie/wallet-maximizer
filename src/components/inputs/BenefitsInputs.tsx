@@ -75,11 +75,7 @@ export function BenefitsInputs({
   return (
     <InputStepLayout
       heading="Which benefits do you care about?"
-      instructions={[
-        "Many cards with annual fees offer benefits related to the below questions.",
-        "These benefits are not free, instead, you would be paying for them upfront in your annual fee.",
-        "Please answer these questions on what you currently do, not what you would ideally do.",
-      ]}
+      description="These questions cover perks that often come with an annual fee. Answer based on what you do now — the fee is what you pay for those benefits up front."
     >
       <div className="space-y-5">
       <div className={inputStepFormGroupClassName}>
@@ -129,7 +125,7 @@ export function BenefitsInputs({
         <h3 className={boxHeaderClass}>Dining and lifestyle</h3>
         <div className="mt-5 space-y-5">
         <QuestionBlock
-          title="About how much do you spend on rideshare each month?"
+          title="How much do you spend on rideshare each month?"
           help={
             <FieldHelp
               id="benefit-rideshare-help"
@@ -145,14 +141,14 @@ export function BenefitsInputs({
         />
 
         <QuestionBlock
-          title="About how much do you spend on food delivery each month?"
+          title="How much do you spend on food delivery each month?"
           help={
             <FieldHelp
               id="benefit-food-delivery-help"
               title="Food delivery"
               icon="exclamation"
             >
-              DoorDash/Uber Eats/Grub Hub
+              DoorDash, Uber Eats, or Grubhub.
             </FieldHelp>
           }
           value={behaviors.foodDeliveryMonthly}
@@ -161,7 +157,7 @@ export function BenefitsInputs({
         />
 
         <QuestionBlock
-          title="About how much would you realistically spend at Resy restaurants each month?"
+          title="How much do you spend at Resy restaurants each month?"
           value={behaviors.resyMonthly}
           options={MONTHLY_SPEND_CAP100_OPTIONS}
           onValueChange={(value) => set("resyMonthly", value)}

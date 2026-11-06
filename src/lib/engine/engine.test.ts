@@ -271,7 +271,7 @@ describe("benefit personalization", () => {
     expect(withValue.find((l) => l.id === tables!.id)?.effectiveValue).toBe(150);
   });
 
-  it("counts only the higher Chase Sapphire Preferred benefit option", () => {
+  it("counts Chase Sapphire Preferred credits together", () => {
     const preferred = catalogToNormalized(
       CARD_CATALOG.find((c) => c.name === "Chase Sapphire Preferred")!,
       "csp"
@@ -290,10 +290,11 @@ describe("benefit personalization", () => {
     );
     expect(dashPass?.effectiveValue).toBe(120);
     expect(promo?.effectiveValue).toBe(120);
+    expect(globalEntry?.effectiveValue).toBe(30);
     expect(dashPass?.countsInStack).not.toBe(false);
     expect(promo?.countsInStack).not.toBe(false);
-    expect(globalEntry?.countsInStack).toBe(false);
-    expect(sumBenefitValues(delivery)).toBe(240);
+    expect(globalEntry?.countsInStack).not.toBe(false);
+    expect(sumBenefitValues(delivery)).toBe(270);
 
     const traveler = calculatePersonalizedBenefits(preferred, {
       ...quietHabits,
@@ -305,8 +306,8 @@ describe("benefit personalization", () => {
         ?.countsInStack
     ).not.toBe(false);
     expect(
-      traveler.find((line) => line.id.startsWith("csp-dashpass"))?.countsInStack
-    ).toBe(false);
+      traveler.find((line) => line.id.startsWith("csp-dashpass"))?.effectiveValue
+    ).toBe(0);
     expect(sumBenefitValues(traveler)).toBe(30);
 
     const reserve = catalogToNormalized(
@@ -324,11 +325,11 @@ describe("benefit personalization", () => {
     expect(
       stacked.find((line) => line.id.startsWith("csp-global-entry"))
         ?.countsInStack
-    ).toBe(false);
+    ).not.toBe(false);
     expect(
       stacked.find((line) => line.id.startsWith("csr-global-entry"))
         ?.countsInStack
-    ).not.toBe(false);
+    ).toBe(false);
   });
 
   it("values curated portal hotel credits only when that stay would be booked", () => {

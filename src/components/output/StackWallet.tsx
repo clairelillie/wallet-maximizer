@@ -10,10 +10,15 @@ import {
 } from "react";
 import { Check, Plane } from "lucide-react";
 import { FieldHelp } from "@/components/inputs/FieldHelp";
+import {
+  FreedomFlexEarnNote,
+  isChaseFreedomFlex,
+} from "@/components/output/FreedomFlexEarnNote";
 import { inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
 import { CardKeepAlertDialog } from "@/components/output/CardKeepAlertDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { dialogPanelClassName, primaryActionClassName } from "@/components/ui/surfaces";
 import { Input } from "@/components/ui/input";
 import {
   findCatalogCardById,
@@ -62,9 +67,9 @@ type CardFace = {
   label: string;
 };
 
-const CARD_INK = "oklch(0.96 0.008 285)";
-const CARD_CHIP = "oklch(0.62 0.16 295)";
-const CARD_STRIPE = "oklch(0.7 0.16 295)";
+const CARD_INK = "oklch(0.96 0.006 270)";
+const CARD_CHIP = "oklch(0.74 0.08 85)";
+const CARD_STRIPE = "oklch(0.55 0.02 270)";
 
 function flatFace(label: string, face: string): CardFace {
   return {
@@ -76,14 +81,14 @@ function flatFace(label: string, face: string): CardFace {
   };
 }
 
-/** Flat near-black faces. Issuers differ only by a slight violet step. */
+/** Near-black faces. Issuers differ by a slight hue, not a branded color. */
 const ISSUER_FACES: Record<string, CardFace> = {
-  chase: flatFace("Chase", "oklch(0.2 0.04 295)"),
-  amex: flatFace("Amex", "oklch(0.17 0.045 295)"),
-  "capital-one": flatFace("Capital One", "oklch(0.22 0.035 290)"),
-  citi: flatFace("Citi", "oklch(0.19 0.05 300)"),
-  flexible: flatFace("Flexible", "oklch(0.21 0.03 285)"),
-  unknown: flatFace("Card", "oklch(0.18 0.03 295)"),
+  chase: flatFace("Chase", "oklch(0.52 0.04 250)"),
+  amex: flatFace("Amex", "oklch(0.48 0.025 270)"),
+  "capital-one": flatFace("Capital One", "oklch(0.54 0.04 35)"),
+  citi: flatFace("Citi", "oklch(0.5 0.035 220)"),
+  flexible: flatFace("Flexible", "oklch(0.5 0.02 270)"),
+  unknown: flatFace("Card", "oklch(0.48 0.02 270)"),
 };
 
 function resolveEcosystem(card: StackCard): PreferredEcosystem | "unknown" {
@@ -263,12 +268,12 @@ function BenefitValueRow({
   );
 }
 
-/** Flat shell colors so the bifold sits on the near-black violet canvas. */
-const WALLET_SHELL = "oklch(0.2 0.04 295)";
-const WALLET_LINING = "oklch(0.15 0.028 295)";
-const WALLET_HINGE = "oklch(0.28 0.07 295)";
-const WALLET_POCKET = "oklch(0.17 0.032 295)";
-const WALLET_EDGE = "oklch(0.7 0.16 295 / 0.7)";
+/** Flat shell colors so the bifold sits on the ink canvas. */
+const WALLET_SHELL = "oklch(0.46 0.02 262)";
+const WALLET_LINING = "oklch(0.4 0.018 262)";
+const WALLET_HINGE = "oklch(0.54 0.024 262)";
+const WALLET_POCKET = "oklch(0.42 0.018 262)";
+const WALLET_EDGE = "oklch(1 0 0 / 0.32)";
 
 /** Visible name strip for each overlapping card (px). */
 const CARD_PEEK = 30;
@@ -335,7 +340,7 @@ function WalletPanel({
 
   return (
     <div
-      className={`relative flex-1 overflow-visible border border-brand/40 ${
+      className={`relative flex-1 overflow-visible border border-border ${
         side === "left" ? "rounded-l-md" : "rounded-r-md"
       }`}
       style={{
@@ -405,19 +410,19 @@ function WalletPanel({
                     transformOrigin: isSelected ? "center bottom" : "center",
                     transition: CARD_MOTION,
                     filter: isSelected
-                      ? "drop-shadow(3px 3px 0 oklch(0.1 0.03 295))"
+                      ? "drop-shadow(0 10px 16px rgb(0 0 0 / 0.45))"
                       : "none",
                   }}
                 >
                   <span
-                    className="relative block h-full w-full overflow-hidden rounded-[2px] border border-brand"
+                    className="relative block h-full w-full overflow-hidden rounded-[2px] border border-white/15"
                     style={{ background: face.face }}
                   >
                     <span
                       className={`absolute inset-x-0 top-0 flex h-[30px] items-center gap-1.5 border-b px-2 ${
                         isSaved
-                          ? "border-gain bg-gain-soft"
-                          : "border-brand bg-brand-soft"
+                          ? "border-gain/50 bg-gain-soft"
+                          : "border-white/20 bg-black/25"
                       }`}
                     >
                       <span className="min-w-0 flex-1 truncate whitespace-nowrap text-left font-sans text-[13px] font-bold tracking-tight text-foreground">
@@ -430,7 +435,7 @@ function WalletPanel({
                       ) : null}
                     </span>
                     <span
-                      className="absolute left-2 top-[2.55rem] h-2.5 w-4 border border-brand"
+                      className="absolute left-2 top-[2.55rem] h-2.5 w-4 border border-black/30"
                       style={{ background: face.chip }}
                     />
                     <span
@@ -467,7 +472,7 @@ function BifoldWallet({
         style={{ paddingTop: CARD_BODY + CARD_PULL_GAP + PULL_HEADROOM }}
       >
         <div
-          className="relative flex overflow-visible rounded-md border border-brand/70 shadow-[6px_6px_0_oklch(0.1_0.03_295)]"
+          className="relative flex overflow-visible rounded-md border border-border shadow-[0_20px_40px_-28px_rgba(0,0,0,0.9)]"
           role="listbox"
           aria-label="Recommended cards in open bifold wallet"
           style={{ background: WALLET_SHELL }}
@@ -490,7 +495,7 @@ function BifoldWallet({
               boxShadow: `inset 1px 0 0 ${WALLET_EDGE}, inset -1px 0 0 ${WALLET_EDGE}`,
             }}
           >
-            <div className="absolute inset-y-3 left-1/2 w-px -translate-x-1/2 bg-brand" />
+            <div className="absolute inset-y-3 left-1/2 w-px -translate-x-1/2 bg-white/20" />
           </div>
 
           {/* Right leaf — all cards in a vertical stack of slots */}
@@ -711,7 +716,7 @@ export function StackWallet({
             </h4>
             <div className="flex flex-wrap items-center gap-2">
               {actionStyle.label === "ADD" ? (
-                <span className="inline-flex h-7 items-center rounded-md bg-gain px-2.5 font-sans text-sm font-extrabold leading-none tracking-wide text-background">
+                <span className="inline-flex h-7 items-center rounded-md bg-gain px-2.5 font-sans text-xs font-semibold leading-none tracking-wide text-background">
                   ADD
                 </span>
               ) : (
@@ -723,13 +728,22 @@ export function StackWallet({
                   Saved
                 </Badge>
               )}
-              <span className="font-sans text-base font-extrabold text-foreground">
-                Annual Fee: ${selected.annualFee}
+              <span className="font-sans text-sm font-medium text-muted-foreground">
+                Annual fee ${selected.annualFee}
               </span>
             </div>
           </div>
 
-          <DetailSection title="Earnings">
+          <DetailSection
+            title="Earnings"
+            help={
+              isChaseFreedomFlex(selected) && earnings.length === 0 ? (
+                <FreedomFlexEarnNote
+                  id={`stack-freedom-flex-${selected.id}`}
+                />
+              ) : undefined
+            }
+          >
             {earnings.length === 0 ? (
               <p className="text-base font-medium text-muted-foreground">
                 {selected.isUnmatchedCustomCard
@@ -738,23 +752,32 @@ export function StackWallet({
               </p>
             ) : (
               <ul className="space-y-2.5">
-                {earnings.map((row) => {
+                {earnings.map((row, index) => {
                   const earn = formatCategoryEarn(
                     row,
                     selected.isUnmatchedCustomCard
                       ? "no_preference"
                       : rewardTypePreference
                   );
+                  const showRotatingNote =
+                    index === 0 && isChaseFreedomFlex(selected);
                   return (
                     <li
                       key={row.category}
-                      className="flex items-baseline justify-between gap-4 text-base font-medium"
+                      className="flex items-baseline justify-between gap-3 text-base font-medium"
                     >
-                      <span>
+                      <span className="min-w-0">
                         <span className="font-medium">{row.label}</span>
                         <span className="ml-1.5 text-muted-foreground">
-                          at {row.multiplier}x · $
-                          {row.annualSpend.toLocaleString()}/yr spend
+                          at {row.multiplier}x
+                          {showRotatingNote ? (
+                            <span className="ml-1.5 inline-flex align-middle">
+                              <FreedomFlexEarnNote
+                                id={`stack-freedom-flex-${selected.id}`}
+                              />
+                            </span>
+                          ) : null}{" "}
+                          · ${row.annualSpend.toLocaleString()}/yr spend
                         </span>
                       </span>
                       <span className="shrink-0 text-right font-mono text-base font-medium tabular-nums text-gain">
@@ -768,9 +791,9 @@ export function StackWallet({
                     </li>
                   );
                 })}
-                <li className="flex items-center justify-between border-t border-border/50 pt-2.5 text-base font-medium">
-                  <span className="text-muted-foreground">Earnings total</span>
-                  <span className="shrink-0 text-right font-mono tabular-nums text-gain">
+                <li className="flex items-start justify-between gap-3 border-t border-border/50 pt-2.5 text-base font-medium">
+                  <span className="min-w-0 text-muted-foreground">Earnings total</span>
+                  <span className="min-w-0 max-w-[68%] text-right font-mono tabular-nums text-gain">
                     {selected.isUnmatchedCustomCard ? (
                       <span className="block font-semibold">
                         ${earningsTotalDollars.toLocaleString()}/yr
@@ -797,8 +820,7 @@ export function StackWallet({
             title="Benefits"
             help={
               <FieldHelp id="stack-benefits-help" title="What are benefits?">
-                These are recommended based on the answers to your questions
-                regarding travel and lifestyle
+                Estimated from your answers about travel and everyday spending.
               </FieldHelp>
             }
           >
@@ -868,10 +890,9 @@ export function StackWallet({
             title="Credits"
             help={
               <FieldHelp id="stack-credits-help" title="What are credits?">
-                These are additional credits offered with the credit card, but
-                we don&apos;t know if you would use them or not. Add a value
-                only if you would use it. These start at $0 and are not
-                assumed.
+                Extra credits on this card. They start at $0 because we do not
+                assume you will use them. Enter a value only for credits you
+                would actually use.
               </FieldHelp>
             }
           >
@@ -959,10 +980,10 @@ export function StackWallet({
                 </span>
               </li>
             </ul>
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex sm:justify-end">
               <Button
                 type="button"
-                className="h-11 min-h-11 rounded-2xl px-4 text-base font-semibold"
+                className={`${primaryActionClassName} w-full sm:w-auto`}
                 onClick={handleSave}
               >
                 {isSelectedSaved ? "Update save" : "Save card"}
@@ -991,7 +1012,7 @@ export function StackWallet({
             role="dialog"
             aria-modal="true"
             aria-labelledby="lounge-tip-title"
-            className="w-full max-w-md rounded-xl border border-white/35 bg-[oklch(0.34_0.03_285)] p-5 text-foreground shadow-xl ring-1 ring-white/15"
+            className={`${dialogPanelClassName} p-5`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex gap-3">

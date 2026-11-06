@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { CircleHelp, X } from "lucide-react";
+import { CircleHelp, Info, X } from "lucide-react";
+import { dialogPanelClassName } from "@/components/ui/surfaces";
 
 interface FieldHelpProps {
   id: string;
@@ -10,7 +11,7 @@ interface FieldHelpProps {
   children: ReactNode;
   /** Accessible name for the trigger. Defaults to the dialog title. */
   label?: string;
-  /** Glyph inside the violet circle. Base rate stays a question mark. */
+  /** Question mark for definitions. Info mark for extra context. */
   icon?: "question" | "exclamation";
 }
 
@@ -53,12 +54,10 @@ export function FieldHelp({
         aria-expanded={open}
         aria-controls={open ? dialogId : undefined}
         onClick={() => setOpen(true)}
-        className="inline-flex size-4 shrink-0 align-middle items-center justify-center rounded-full bg-brand-soft text-brand ring-1 ring-brand/70 transition-colors hover:bg-brand/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex size-4 shrink-0 items-center justify-center align-middle rounded-full text-muted-foreground ring-1 ring-border transition-colors hover:text-foreground hover:ring-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {icon === "exclamation" ? (
-          <span className="text-[11px] font-bold leading-none" aria-hidden="true">
-            !
-          </span>
+          <Info className="size-2.5" aria-hidden="true" />
         ) : (
           <CircleHelp className="size-2.5" aria-hidden="true" />
         )}
@@ -76,7 +75,7 @@ export function FieldHelp({
                 aria-modal="true"
                 aria-labelledby={titleId}
                 aria-describedby={bodyId}
-                className="relative w-full max-w-md rounded-2xl border border-white/35 bg-[oklch(0.34_0.03_285)] px-6 py-7 text-foreground shadow-xl ring-1 ring-white/15 sm:px-8 sm:py-8"
+                className={dialogPanelClassName}
                 onClick={(event) => event.stopPropagation()}
               >
                 <button
@@ -88,7 +87,7 @@ export function FieldHelp({
                 >
                   <X className="size-4" aria-hidden="true" />
                 </button>
-                <h2 id={titleId} className="pr-10 text-2xl font-bold tracking-tight">
+                <h2 id={titleId} className="pr-10 text-lg font-semibold tracking-tight">
                   {title}
                 </h2>
                 <p id={bodyId} className="mt-3 text-base font-medium leading-relaxed text-foreground">

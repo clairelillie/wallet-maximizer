@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { primaryActionClassName } from "@/components/ui/surfaces";
 
 const CALCULATING_MS = 5000;
 
@@ -48,14 +49,12 @@ export function CalculatingScreen({ onSeeResults }: CalculatingScreenProps) {
             <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
               Working
             </p>
-            <div className="rounded-2xl border border-border/70 bg-card px-6 py-7 text-center sm:px-8 sm:py-8">
-              <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
-                Calculating your optimal stack
-              </h2>
-            </div>
-            <p className="text-center text-[15px] leading-relaxed text-muted-foreground">
-              Matching your spend, benefits, and preferences to the highest-value
-              wallet we can build.
+            <h2 className="text-center text-3xl font-semibold tracking-tight sm:text-4xl">
+              Building your stack
+            </h2>
+            <p className="text-center text-base leading-relaxed text-muted-foreground">
+              Matching your spend, benefits, and preferences to a wallet you
+              can keep using.
             </p>
           </div>
           <div className="mx-auto h-1.5 w-52 overflow-hidden rounded-full bg-muted">
@@ -74,19 +73,16 @@ export function CalculatingScreen({ onSeeResults }: CalculatingScreenProps) {
             <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
               Done
             </p>
-            <div className="rounded-2xl border border-border/70 bg-card px-6 py-7 text-center sm:px-8 sm:py-8">
-              <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
-                Your results are ready
-              </h2>
-            </div>
-            <p className="text-center font-sans text-base font-medium leading-relaxed text-muted-foreground">
-              We&apos;ve built a recommended stack from your inputs. Open it when
-              you&apos;re ready.
+            <h2 className="text-center text-3xl font-semibold tracking-tight sm:text-4xl">
+              Your stack is ready
+            </h2>
+            <p className="text-center text-base leading-relaxed text-muted-foreground">
+              Review each card, then compare it with the wallet you have now.
             </p>
           </div>
           <Button
             type="button"
-            className="h-14 min-h-14 rounded-2xl px-6 text-base font-semibold sm:h-16 sm:min-h-16 sm:px-8"
+            className={primaryActionClassName}
             onClick={onSeeResults}
           >
             See my results

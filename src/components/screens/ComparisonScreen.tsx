@@ -1,11 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { findCatalogCardByName } from "@/catalog";
 import { FieldHelp } from "@/components/inputs/FieldHelp";
+import {
+  FreedomFlexEarnNote,
+  isChaseFreedomFlex,
+} from "@/components/output/FreedomFlexEarnNote";
 import { inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
 import { Button } from "@/components/ui/button";
+import {
+  stepActionButtonClassName,
+  stepActionsClassName,
+} from "@/components/ui/surfaces";
+import { SUPPORT_EMAIL } from "@/lib/site";
 import { formatSignedMoney } from "@/lib/card-value";
 import {
   formatCategoryEarn,
@@ -32,7 +41,6 @@ interface ComparisonScreenProps {
   rewardTypePreference?: RewardTypePreference;
   onBackToStack: () => void;
   onEditInputs: () => void;
-  onContinueToNextSteps: () => void;
 }
 
 type BenefitRevealRow =
@@ -57,14 +65,11 @@ let updatedDazzlePlayed = false;
 
 const DAZZLE_MS = 1000;
 
-const footerButtonClass =
-  "h-14 min-h-14 rounded-2xl px-6 text-base font-semibold sm:h-16 sm:min-h-16 sm:px-8";
-
 const sectionTitleClass =
   "min-w-0 text-lg font-bold tracking-tight break-words sm:text-xl";
 
 const earnColumnsClass =
-  "grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,1.4fr)_minmax(6.5rem,auto)_minmax(8rem,auto)] sm:items-baseline sm:gap-x-6";
+  "grid grid-cols-2 gap-x-3 gap-y-1 [&>span]:min-w-0 [&>span]:break-words sm:grid-cols-[minmax(0,1.05fr)_minmax(0,1.25fr)_auto_auto_minmax(7.5rem,auto)] sm:items-baseline sm:gap-x-6 sm:gap-y-2";
 
 function benefitKey(cardName: string, label: string, valuedBy: string): string {
   return `${cardName.toLowerCase()}::${valuedBy}::${label.toLowerCase()}`;
@@ -226,20 +231,16 @@ function UpdatedReveal({ active }: { active: boolean }) {
   );
 }
 
-function ImprovedWash({
-  settle,
-  className,
-}: {
-  settle: boolean;
-  className: string;
-}) {
+/** Full-row mint band. Parent must not be a grid, or this layer can collapse to one cell. */
+const improvedRowPadClass = "px-4 py-4";
+
+function ImprovedWash({ settle }: { settle: boolean }) {
   return (
     <span
       aria-hidden
       className={cn(
-        "pointer-events-none absolute -z-10 rounded-2xl border border-gain/70 bg-gain-soft",
-        settle && "compare-highlight-settle",
-        className
+        "pointer-events-none absolute inset-0 -z-10 rounded-xl border border-gain/70 bg-gain-soft",
+        settle && "compare-highlight-settle"
       )}
     />
   );
@@ -340,7 +341,6 @@ export function ComparisonScreen({
   rewardTypePreference = "no_preference",
   onBackToStack,
   onEditInputs,
-  onContinueToNextSteps,
 }: ComparisonScreenProps) {
   const [view, setView] = useState<CompareView>("current");
   const [dazzling, setDazzling] = useState(false);
@@ -423,14 +423,9 @@ export function ComparisonScreen({
   return (
     <div className="mx-auto max-w-3xl space-y-10">
       <div className="space-y-3">
-        <div
-          className={cn(
-            "relative rounded-2xl border border-border/70 bg-card px-6 py-7 sm:px-8 sm:py-8",
-            dazzling && "compare-dazzle-glow"
-          )}
-        >
+        <div className={cn("relative", dazzling && "compare-dazzle-glow rounded-2xl")}>
           <UpdatedReveal active={dazzling} />
-          <h2 className="relative text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="relative text-2xl font-semibold tracking-tight sm:text-3xl">
             {heading}
           </h2>
         </div>
@@ -440,10 +435,10 @@ export function ComparisonScreen({
             type="button"
             aria-pressed={view === "current"}
             onClick={() => selectView("current")}
-            className={`rounded-2xl border px-4 py-3 text-base font-semibold ${
+            className={`rounded-xl border px-4 py-3 text-sm font-semibold sm:text-base ${
               view === "current"
-                ? "border-brand bg-brand-soft text-foreground"
-                : "border-border/70 bg-card text-foreground"
+                ? "border-primary/40 bg-brand-soft text-foreground"
+                : "border-border bg-card text-muted-foreground hover:text-foreground"
             }`}
           >
             What you currently earn
@@ -452,10 +447,10 @@ export function ComparisonScreen({
             type="button"
             aria-pressed={view === "updated"}
             onClick={() => selectView("updated")}
-            className={`rounded-2xl border px-4 py-3 text-base font-semibold ${
+            className={`rounded-xl border px-4 py-3 text-sm font-semibold sm:text-base ${
               view === "updated"
-                ? "border-brand bg-brand-soft text-foreground"
-                : "border-border/70 bg-card text-foreground"
+                ? "border-primary/40 bg-brand-soft text-foreground"
+                : "border-border bg-card text-muted-foreground hover:text-foreground"
             }`}
           >
             Updated recommendations
@@ -472,7 +467,7 @@ export function ComparisonScreen({
         )}
       >
         <UpdatedReveal active={dazzling} />
-        <h3 className={sectionTitleClass}>Earnings</h3>
+        <h3 className={sectionTitleClass}>Annual earnings</h3>
         {earnLines.length === 0 ? (
           <p className="mt-5 text-base font-medium text-muted-foreground">
             {earningsEmptyCopy(view, result)}
@@ -484,56 +479,75 @@ export function ComparisonScreen({
             >
               <span>Spending category</span>
               <span>Card name</span>
+              <span className="sm:text-right">Annual spend</span>
               <span className="sm:text-right">Earning rate</span>
-              <span className="sm:text-right">Total earnings</span>
+              <span className="col-span-2 text-right sm:col-span-1">
+                Annual earnings
+              </span>
             </div>
             <ul>
               {earnLines.map((earnRow) => {
                 const earn = formatCategoryEarn(earnRow, rewardTypePreference);
                 const improved =
                   view === "updated" && improvedCategories.has(earnRow.category);
+                const showRotatingNote =
+                  isChaseFreedomFlex({ name: earnRow.cardName }) &&
+                  earnLines.find((row) =>
+                    isChaseFreedomFlex({ name: row.cardName })
+                  )?.category === earnRow.category;
                 return (
                   <li
                     key={earnRow.category}
                     data-improved={improved ? "true" : undefined}
-                    className={cn("relative z-0", earnColumnsClass, "py-2.5")}
+                    className={cn("relative z-0", improved && "my-1")}
                   >
-                    {improved ? (
-                      <ImprovedWash
-                        settle={dazzling}
-                        className="inset-x-0 inset-y-px"
-                      />
-                    ) : null}
-                    <span className="min-w-0 break-words text-base font-medium">
-                      {earnRow.label}
-                    </span>
-                    <span className="min-w-0 break-words text-base font-medium">
-                      {earnRow.cardName}
-                    </span>
-                    <span
+                    {improved ? <ImprovedWash settle={dazzling} /> : null}
+                    <div
                       className={cn(
-                        "text-base font-medium tabular-nums sm:text-right",
-                        improved && "text-gain"
+                        earnColumnsClass,
+                        "relative z-10",
+                        improved ? improvedRowPadClass : "py-2.5"
                       )}
                     >
-                      {earnRow.multiplier}x
-                    </span>
-                    <span className="min-w-0 text-right text-base font-medium tabular-nums">
-                      <span className={cn("block", improved && "text-gain")}>
-                        {earn.primary}
+                      <span className="min-w-0 break-words text-base font-medium">
+                        {earnRow.label}
                       </span>
-                      {earn.secondary ? (
-                        <span className="block text-muted-foreground">
-                          {earn.secondary}
+                      <span className="min-w-0 break-words text-base font-medium">
+                        {earnRow.cardName}
+                      </span>
+                      <span className="text-base font-medium tabular-nums sm:text-right">
+                        ${earnRow.annualSpend.toLocaleString()}
+                      </span>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1.5 text-base font-medium tabular-nums sm:justify-end",
+                          improved && "text-gain"
+                        )}
+                      >
+                        <span>{earnRow.multiplier}x</span>
+                        {showRotatingNote ? (
+                          <FreedomFlexEarnNote
+                            id={`compare-freedom-flex-${view}`}
+                          />
+                        ) : null}
+                      </span>
+                      <span className="col-span-2 min-w-0 text-right text-base font-medium tabular-nums sm:col-span-1">
+                        <span className={cn("block", improved && "text-gain")}>
+                          {earn.primary}
                         </span>
-                      ) : null}
-                    </span>
+                        {earn.secondary ? (
+                          <span className="block text-muted-foreground">
+                            {earn.secondary}
+                          </span>
+                        ) : null}
+                      </span>
+                    </div>
                   </li>
                 );
               })}
             </ul>
             <div className="flex items-baseline justify-between gap-4 border-t border-border/50 pt-3 text-base font-medium">
-              <span>Earnings total</span>
+              <span>Annual earnings total</span>
               <span className="text-right tabular-nums">
                 <span className="block">{earningsDisplay.primary}</span>
                 {earningsDisplay.secondary ? (
@@ -575,39 +589,41 @@ export function ComparisonScreen({
               <li
                 key={row.key}
                 data-improved={isNew ? "true" : undefined}
-                className="relative z-0 flex items-baseline justify-between gap-4 text-base font-medium"
+                className="relative z-0"
               >
-                {isNew ? (
-                  <ImprovedWash
-                    settle={dazzling}
-                    className="-inset-x-2 -inset-y-1.5"
-                  />
-                ) : null}
-                <div className="min-w-0">
-                  <p>
-                    {row.label}
-                    {description ? (
-                      <span className="ml-1.5 inline-flex align-middle">
-                        <FieldHelp
-                          id={`compare-benefit-${row.key.replace(/[^A-Za-z0-9_-]+/g, "-")}`}
-                          title={row.label}
-                          icon="exclamation"
-                        >
-                          {description}
-                        </FieldHelp>
-                      </span>
-                    ) : null}
-                  </p>
-                  <p className="text-muted-foreground">{row.cardName}</p>
-                </div>
-                <span
+                {isNew ? <ImprovedWash settle={dazzling} /> : null}
+                <div
                   className={cn(
-                    "shrink-0 font-mono tabular-nums",
-                    isNew && "text-gain"
+                    "relative z-10 flex items-baseline justify-between gap-4 text-base font-medium",
+                    isNew && improvedRowPadClass
                   )}
                 >
-                  ${row.value.toLocaleString()}/yr
-                </span>
+                  <div className="min-w-0">
+                    <p>
+                      {row.label}
+                      {description ? (
+                        <span className="ml-1.5 inline-flex align-middle">
+                          <FieldHelp
+                            id={`compare-benefit-${row.key.replace(/[^A-Za-z0-9_-]+/g, "-")}`}
+                            title={row.label}
+                            icon="exclamation"
+                          >
+                            {description}
+                          </FieldHelp>
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-muted-foreground">{row.cardName}</p>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 font-mono tabular-nums",
+                      isNew && "text-gain"
+                    )}
+                  >
+                    ${row.value.toLocaleString()}/yr
+                  </span>
+                </div>
               </li>
               );
             })}
@@ -629,57 +645,53 @@ export function ComparisonScreen({
       </div>
 
       {view === "updated" ? (
-      <div className="space-y-5">
-        <section
-          className={`rounded-[2rem] border-2 px-6 py-7 text-center shadow-lg sm:px-10 sm:py-9 ${
-            netGain > 0
-              ? "border-gain/40 bg-gain-soft dark:border-gain/50 dark:bg-gain-soft/40"
-              : netGain < 0
-                ? "border-amber-300/80 bg-amber-50 dark:border-amber-700/50 dark:bg-amber-950/40"
-                : "border-border bg-muted/40"
-          }`}
-        >
-          <p
-            className={`text-sm font-semibold uppercase tracking-[0.18em] sm:text-base ${
-              netGain > 0 ? "text-gain" : "text-muted-foreground"
+        <div className="space-y-5">
+          <section
+            className={`rounded-2xl border px-6 py-7 text-center sm:px-8 sm:py-8 ${
+              netGain > 0
+                ? "border-gain/30 bg-gain-soft/50"
+                : netGain < 0
+                  ? "border-amber-200/20 bg-amber-200/10"
+                  : "border-border bg-muted/40"
             }`}
           >
-            With the recommended stack
+            <p
+              className={`text-xs font-semibold uppercase tracking-[0.16em] ${
+                netGain > 0 ? "text-gain" : "text-muted-foreground"
+              }`}
+            >
+              Versus your current wallet
+            </p>
+            <p
+              className={`mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl ${
+                netGain > 0 ? "text-gain" : "text-foreground"
+              }`}
+            >
+              {gainDollars} {netGain >= 0 ? "more" : "less"} a year
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground sm:text-base">
+              Estimated net value of the recommended stack
+            </p>
+          </section>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            These figures are estimates from your answers. Confirm rates,
+            credits, and fees with the issuer before you apply, keep, or cancel
+            a card. Questions or a correction?{" "}
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="break-words font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              {SUPPORT_EMAIL}
+            </a>
           </p>
-          <p
-            className={`mt-3 text-balance text-3xl font-bold tracking-tight sm:text-5xl ${
-              netGain > 0 ? "text-gain" : "text-foreground"
-            }`}
-          >
-            You’d be earning{" "}
-            <span className="font-mono tabular-nums">{gainDollars}</span>{" "}
-            {netGain >= 0 ? "more" : "less"}
-          </p>
-          <p
-            className={`mt-3 text-base sm:text-lg ${
-              netGain > 0 ? "text-gain/90" : "text-muted-foreground"
-            }`}
-          >
-            per year versus your current wallet
-          </p>
-        </section>
-        <section className="space-y-4 rounded-[2rem] border border-border/70 bg-card px-6 py-8 text-center shadow-sm sm:px-10">
-          <p className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
-            Like what you see? Let’s make it happen!
-          </p>
-          <Button type="button" size="lg" onClick={onContinueToNextSteps}>
-            Continue
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </section>
-      </div>
+        </div>
       ) : null}
 
-      <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-6">
+      <div className={stepActionsClassName}>
         <Button
           type="button"
           variant="ghost"
-          className={footerButtonClass}
+          className={stepActionButtonClassName}
           onClick={onBackToStack}
         >
           <ArrowLeft className="mr-2 size-5" />
@@ -688,10 +700,10 @@ export function ComparisonScreen({
         <Button
           type="button"
           variant="ghost"
-          className={footerButtonClass}
+          className={`${stepActionButtonClassName} sm:ml-auto`}
           onClick={onEditInputs}
         >
-          Inputs
+          Edit inputs
         </Button>
       </div>
     </div>

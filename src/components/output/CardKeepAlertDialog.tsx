@@ -48,7 +48,7 @@ export function CardKeepAlertDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex gap-3">
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-200/15 text-amber-200">
             <CircleAlert className="h-4 w-4" />
           </div>
           <div className="min-w-0 space-y-3">

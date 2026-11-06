@@ -37,7 +37,8 @@ export type LoyaltyProgramId =
   | "jetblue"
   | "alaska"
   | "marriott"
-  | "hilton";
+  | "hilton"
+  | "hyatt";
 
 /**
  * Selectable airline/hotel programs on Preferences (multi-select).
@@ -52,8 +53,8 @@ export type LoyaltyProgramSelection =
 export type AirlineProgramSelection = LoyaltyProgramSelection;
 
 /**
- * Allowed rewards strategies (multi-select on Preferences).
- * `"no_preference"` is mutually exclusive with the concrete strategies.
+ * Allowed rewards strategy (single choice on Preferences).
+ * `"no_preference"` allows every concrete strategy.
  */
 export type RewardsStrategy =
   | "transferable"
@@ -264,10 +265,9 @@ export interface UserPreferences {
    */
   preferredLoyaltyPrograms: LoyaltyProgramSelection[];
   /**
-   * Allowed rewards strategies (multi-select).
-   * `"no_preference"` alone = all strategies allowed.
-   * Concrete strategies are hard constraints: a points card must match at
-   * least one selected strategy. Different cards may use different strategies.
+   * Allowed rewards strategy (single choice, stored as a one-item list).
+   * `"no_preference"` = all strategies allowed.
+   * A concrete strategy is a hard constraint: a points card must match it.
    */
   rewardsStrategies: RewardsStrategy[];
 }

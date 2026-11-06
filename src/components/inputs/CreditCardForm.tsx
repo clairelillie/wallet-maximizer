@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import { Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Trash2, X } from "lucide-react";
 import { FieldHelp } from "@/components/inputs/FieldHelp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import {
+  dialogPanelClassName,
+  fieldControlClassName,
+  selectTriggerClassName,
+} from "@/components/ui/surfaces";
 import {
   catalogCardsForEcosystem,
   fieldsFromCatalogCard,
@@ -34,32 +40,166 @@ interface CreditCardFormProps {
 }
 
 const fieldLabelClass = "text-base font-medium";
-const fieldInputClass =
-  "h-11 min-h-11 rounded-xl border-white/35 bg-[oklch(0.34_0.03_285)] px-3 text-base font-medium hover:bg-[oklch(0.38_0.03_285)] md:text-base dark:border-white/35 dark:bg-[oklch(0.34_0.03_285)] dark:hover:bg-[oklch(0.38_0.03_285)]";
+const fieldInputClass = fieldControlClassName;
+
+const EARNINGS_LOCK_MESSAGE =
+  "Earning rates for catalog cards come from our card data, so these fields stay fixed. You can still edit the annual fee.";
+
+function EarningsNumberInput({
+  id,
+  value,
+  placeholder,
+  locked,
+  onLockedAttempt,
+  onChange,
+}: {
+  id?: string;
+  value: number | undefined;
+  placeholder?: string;
+  locked: boolean;
+  onLockedAttempt: () => void;
+  onChange: (raw: string) => void;
+}) {
+  const pointerActive = useRef(false);
+
+  return (
+    <Input
+      id={id}
+      type="number"
+      min={0}
+      step={0.5}
+      placeholder={placeholder}
+      value={value ?? ""}
+      readOnly={locked}
+      aria-readonly={locked || undefined}
+      onPointerDown={() => {
+        if (locked) pointerActive.current = true;
+      }}
+      onPointerCancel={() => {
+        pointerActive.current = false;
+      }}
+      onMouseDown={(event) => {
+        if (!locked) return;
+        pointerActive.current = true;
+        event.preventDefault();
+      }}
+      onFocus={() => {
+        if (!locked || pointerActive.current) return;
+        onLockedAttempt();
+      }}
+      onClick={() => {
+        if (!locked) return;
+        pointerActive.current = false;
+        onLockedAttempt();
+      }}
+      onKeyDown={(event) => {
+        if (!locked) return;
+        if (event.key === "Tab" || event.key === "Escape") return;
+        event.preventDefault();
+      }}
+      onBeforeInput={(event) => {
+        if (locked) event.preventDefault();
+      }}
+      onPaste={(event) => {
+        if (locked) event.preventDefault();
+      }}
+      onChange={(event) => {
+        if (locked) {
+          event.currentTarget.value = value == null ? "" : String(value);
+          return;
+        }
+        onChange(event.target.value);
+      }}
+      className={locked ? `${fieldInputClass} cursor-default` : fieldInputClass}
+    />
+  );
+}
+
+function EarningsRatesNotice({
+  open,
+  messageId,
+  onClose,
+}: {
+  open: boolean;
+  messageId: string;
+  onClose: () => void;
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!open) return;
+    closeRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onCloseRef.current();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 font-sans sm:items-center"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={messageId}
+        className={dialogPanelClassName}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          ref={closeRef}
+          type="button"
+          aria-label="Close"
+          onClick={onClose}
+          className="absolute top-4 right-4 inline-flex size-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+        <p
+          id={messageId}
+          className="pr-10 text-base font-medium leading-relaxed text-foreground"
+        >
+          {EARNINGS_LOCK_MESSAGE}
+        </p>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 function MultiplierField({
   label,
   value,
+  locked,
+  onLockedAttempt,
   onChange,
 }: {
   label: string;
   value: number | undefined;
+  locked: boolean;
+  onLockedAttempt: () => void;
   onChange: (v: number | undefined) => void;
 }) {
   return (
     <div className="space-y-2">
       <Label className={fieldLabelClass}>{label}</Label>
-      <Input
-        type="number"
-        min={0}
-        step={0.5}
+      <EarningsNumberInput
+        value={value}
         placeholder="Base"
-        value={value ?? ""}
-        onChange={(e) => {
-          const raw = e.target.value;
+        locked={locked}
+        onLockedAttempt={onLockedAttempt}
+        onChange={(raw) => {
           onChange(raw === "" ? undefined : parseFloat(raw));
         }}
-        className={fieldInputClass}
       />
     </div>
   );
@@ -72,9 +212,6 @@ const blankCardFields = {
   baseMultiplier: 1,
   multipliers: {} as UserCreditCard["multipliers"],
 };
-
-const selectTriggerClassName =
-  "h-11 min-h-11 w-full rounded-xl border-white/35 bg-[oklch(0.34_0.03_285)] px-3 font-sans text-base font-medium leading-normal data-[size=default]:h-11 data-[size=default]:min-h-11 md:text-base hover:bg-[oklch(0.38_0.03_285)] dark:border-white/35 dark:bg-[oklch(0.34_0.03_285)] dark:hover:bg-[oklch(0.38_0.03_285)]";
 
 function CardSelect({
   id,
@@ -131,6 +268,14 @@ export function CreditCardForm({
     () => catalogCardsForEcosystem(ecosystem),
     [ecosystem]
   );
+  const earningsLocked =
+    !isCustom && Boolean(card.catalogId || findCatalogCard(card.name));
+  const [earningsNoticeOpen, setEarningsNoticeOpen] = useState(false);
+  const showEarningsNotice = () => setEarningsNoticeOpen(true);
+
+  useEffect(() => {
+    if (!earningsLocked) setEarningsNoticeOpen(false);
+  }, [earningsLocked]);
 
   const handleEcosystemChange = (value: string) => {
     if (!value) return;
@@ -160,7 +305,7 @@ export function CreditCardForm({
   };
 
   return (
-    <div className="rounded-2xl border border-border/70 bg-card px-5 py-6 sm:px-6 sm:py-7">
+    <div className="rounded-2xl border border-border bg-card px-5 py-6 sm:px-6 sm:py-7">
       <div className="flex items-center justify-between gap-3">
         <h3 className="min-w-0 text-lg font-bold tracking-tight break-words sm:text-xl">
           Card {index + 1}
@@ -273,16 +418,14 @@ export function CreditCardForm({
                 </FieldHelp>
               </span>
             </div>
-            <Input
+            <EarningsNumberInput
               id={`base-${card.id}`}
-              type="number"
-              min={0}
-              step={0.5}
               value={card.baseMultiplier}
-              onChange={(e) =>
-                onUpdate({ baseMultiplier: parseFloat(e.target.value) || 1 })
+              locked={earningsLocked}
+              onLockedAttempt={showEarningsNotice}
+              onChange={(raw) =>
+                onUpdate({ baseMultiplier: parseFloat(raw) || 1 })
               }
-              className={fieldInputClass}
             />
           </div>
         </div>
@@ -298,6 +441,8 @@ export function CreditCardForm({
             <MultiplierField
               label="Dining"
               value={card.multipliers.dining}
+              locked={earningsLocked}
+              onLockedAttempt={showEarningsNotice}
               onChange={(dining) =>
                 onUpdate({ multipliers: { ...card.multipliers, dining } })
               }
@@ -305,6 +450,8 @@ export function CreditCardForm({
             <MultiplierField
               label="Grocery"
               value={card.multipliers.grocery}
+              locked={earningsLocked}
+              onLockedAttempt={showEarningsNotice}
               onChange={(grocery) =>
                 onUpdate({ multipliers: { ...card.multipliers, grocery } })
               }
@@ -317,6 +464,8 @@ export function CreditCardForm({
                 card.multipliers.hotels ??
                 card.multipliers.rentalCars
               }
+              locked={earningsLocked}
+              onLockedAttempt={showEarningsNotice}
               onChange={(travel) =>
                 onUpdate({
                   multipliers: {
@@ -332,6 +481,8 @@ export function CreditCardForm({
             <MultiplierField
               label="Gas"
               value={card.multipliers.gas}
+              locked={earningsLocked}
+              onLockedAttempt={showEarningsNotice}
               onChange={(gas) =>
                 onUpdate({ multipliers: { ...card.multipliers, gas } })
               }
@@ -339,6 +490,8 @@ export function CreditCardForm({
             <MultiplierField
               label="Online"
               value={card.multipliers.onlineShopping}
+              locked={earningsLocked}
+              onLockedAttempt={showEarningsNotice}
               onChange={(onlineShopping) =>
                 onUpdate({
                   multipliers: { ...card.multipliers, onlineShopping },
@@ -348,7 +501,7 @@ export function CreditCardForm({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4 border-t border-border/50 pt-5">
+        <div className="flex items-start justify-between gap-3 border-t border-border/50 pt-5">
           <div className="min-w-0">
             <Label htmlFor={`keep-${card.id}`} className={fieldLabelClass}>
               Must-keep?
@@ -365,6 +518,11 @@ export function CreditCardForm({
           />
         </div>
       </div>
+      <EarningsRatesNotice
+        open={earningsNoticeOpen}
+        messageId={`earnings-lock-${card.id}`}
+        onClose={() => setEarningsNoticeOpen(false)}
+      />
     </div>
   );
 }

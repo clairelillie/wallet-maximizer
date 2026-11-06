@@ -1,4 +1,4 @@
-# Credit Card Stack Optimizer
+# Wallet Maximizer
 
 MVP web app that recommends an intentional **3–5 card** wallet based on your current cards, spending habits, and preferences. Not a churner tool — focused on simplicity and fee justification.
 

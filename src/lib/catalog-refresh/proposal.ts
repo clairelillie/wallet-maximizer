@@ -24,6 +24,7 @@ const LOYALTY_PROGRAMS: LoyaltyProgramId[] = [
   "alaska",
   "marriott",
   "hilton",
+  "hyatt",
 ];
 
 /** Bare "american" also matches American Express, so require the airline name. */
@@ -36,6 +37,7 @@ const PROGRAM_ALIASES: Record<LoyaltyProgramId, string[]> = {
   alaska: ["alaska"],
   marriott: ["marriott"],
   hilton: ["hilton"],
+  hyatt: ["hyatt"],
 };
 
 const QUIET_PATH_SEGMENTS = new Set([
@@ -471,7 +473,7 @@ function acceptProgramAdd(
   if (!program) {
     return {
       reason:
-        "Name one program id: american, delta, united, southwest, jetblue, alaska, marriott, or hilton.",
+        "Name one program id: american, delta, united, southwest, jetblue, alaska, marriott, hilton, or hyatt.",
     };
   }
   const aliases = PROGRAM_ALIASES[program];

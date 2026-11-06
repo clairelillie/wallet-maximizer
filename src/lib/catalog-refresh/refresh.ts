@@ -40,7 +40,7 @@ Rules:
 - Example: 5x on Chase Travel and 2x on travel worldwide is flights, hotels, and rentalCars each { portal: 5, direct: 2 }. Do not propose it again when the catalog already has those numbers.
 - annualFee is the ongoing annual fee in dollars, after any first-year waiver.
 - hasLoungeAccess may be true only when this card includes lounge access or lounge passes. Do not set it false.
-- transferPartners and directEarnPrograms: one change per program to add. proposed is one of american, delta, united, southwest, jetblue, alaska, marriott, hilton. american means American Airlines or AAdvantage, not American Express. Do not propose removals.
+- transferPartners and directEarnPrograms: one change per program to add. proposed is one of american, delta, united, southwest, jetblue, alaska, marriott, hilton, hyatt. american means American Airlines or AAdvantage, not American Express. Do not propose removals.
 - benefits.<id>.maxAnnualValue is the yearly dollar ceiling. A credit of $120 every four years is 30. Do not convert points or miles into dollars.
 - Do not change id, ecosystem, rewardType, isPremium, valuedBy, stackRule, stackGroup, choice fields, labels, or descriptions.
 - A new benefit is a statement credit with a dollar cap that is not already listed. Lounge access, insurance, status, and welcome bonuses are not new benefits.

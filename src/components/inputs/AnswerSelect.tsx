@@ -8,21 +8,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { selectTriggerClassName } from "@/components/ui/surfaces";
 
 /** Same closed control for single-choice and select-all questions. */
-export const answerSelectTriggerClassName =
-  "h-11 min-h-11 w-full rounded-xl border-white/35 bg-[oklch(0.34_0.03_285)] px-3 font-sans text-base font-medium leading-normal data-[size=default]:h-11 data-[size=default]:min-h-11 md:text-base hover:bg-[oklch(0.38_0.03_285)] dark:border-white/35 dark:bg-[oklch(0.34_0.03_285)] dark:hover:bg-[oklch(0.38_0.03_285)]";
+export const answerSelectTriggerClassName = selectTriggerClassName;
 
 export function AnswerSelect<T extends string | number>({
   label,
   value,
   options,
   onValueChange,
+  renderOption,
 }: {
   label: string;
   value: T;
   options: ReadonlyArray<{ value: T; label: string }>;
   onValueChange: (value: T) => void;
+  renderOption?: (option: { value: T; label: string }) => ReactNode;
 }) {
   return (
     <Select
@@ -38,7 +40,7 @@ export function AnswerSelect<T extends string | number>({
       <SelectContent>
         {options.map((option) => (
           <SelectItem key={String(option.value)} value={option.value}>
-            {option.label}
+            {renderOption ? renderOption(option) : option.label}
           </SelectItem>
         ))}
       </SelectContent>

@@ -2,12 +2,11 @@
 
 import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { HardFilterDialog } from "@/components/inputs/HardFilterDialog";
-import { AppHeader } from "@/components/layout/AppHeader";
 import { ScreenNav, type AppScreen } from "@/components/layout/ScreenNav";
 import { CalculatingScreen } from "@/components/screens/CalculatingScreen";
 import { ComparisonScreen } from "@/components/screens/ComparisonScreen";
 import { InputScreen } from "@/components/screens/InputScreen";
-import { NextStepsScreen } from "@/components/screens/NextStepsScreen";
+import { LandingScreen } from "@/components/screens/LandingScreen";
 import { StackResultScreen } from "@/components/screens/StackResultScreen";
 import { useOptimizerState } from "@/hooks/useOptimizerState";
 import { hardFilterWarningCopy } from "@/lib/constraint-copy";
@@ -37,9 +36,8 @@ export function StackOptimizerApp() {
     setPreferences,
   } = useOptimizerState();
 
-  const [screen, setScreen] = useState<AppScreen>("input");
+  const [screen, setScreen] = useState<AppScreen>("landing");
   const [resultsRevealed, setResultsRevealed] = useState(false);
-  const [showNextSteps, setShowNextSteps] = useState(false);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [focusPreferences, setFocusPreferences] = useState(false);
   const [savedByCardId, setSavedByCardId] = useState<
@@ -58,7 +56,6 @@ export function StackOptimizerApp() {
 
   const goToCalculating = () => {
     setResultsRevealed(false);
-    setShowNextSteps(false);
     setSavedByCardId({});
     setReviewCardIds([]);
     setScreen("calculating");
@@ -162,15 +159,8 @@ export function StackOptimizerApp() {
   const handleScreenChange = (next: AppScreen) => {
     if (next === "calculating") return;
     if (next === "compare" && !allCardsSaved) return;
-    if (next === "nextSteps" && !(allCardsSaved && showNextSteps)) return;
     if (next !== "input" && !(hasCalculated && resultsRevealed)) return;
     setScreen(next);
-  };
-
-  const continueToNextSteps = () => {
-    if (!allCardsSaved || !(hasCalculated && resultsRevealed)) return;
-    setShowNextSteps(true);
-    setScreen("nextSteps");
   };
 
   const resultsReady = hasCalculated && resultsRevealed;
@@ -180,17 +170,21 @@ export function StackOptimizerApp() {
   }, [screen]);
 
   return (
-    <div className="min-h-screen">
-      <AppHeader />
-      <ScreenNav
-        screen={screen}
-        onChange={handleScreenChange}
-        resultsReady={resultsReady}
-        compareReady={allCardsSaved}
-        showNextSteps={showNextSteps}
-      />
+    <div>
+      {screen !== "landing" && (
+        <ScreenNav
+          screen={screen}
+          onChange={handleScreenChange}
+          resultsReady={resultsReady}
+          compareReady={allCardsSaved}
+        />
+      )}
 
-      <main className="px-4 py-10 sm:px-6 sm:py-14">
+      <main className="px-4 py-6 sm:px-6 sm:py-14">
+        {screen === "landing" && (
+          <LandingScreen onContinue={() => setScreen("input")} />
+        )}
+
         {screen === "input" && (
           <InputScreen
             cards={cards}
@@ -242,27 +236,9 @@ export function StackOptimizerApp() {
               rewardTypePreference={preferences.rewardTypePreference}
               onBackToStack={() => handleScreenChange("stack")}
               onEditInputs={() => handleScreenChange("input")}
-              onContinueToNextSteps={continueToNextSteps}
-            />
-          )}
-
-        {screen === "nextSteps" &&
-          hasCalculated &&
-          resultsRevealed &&
-          allCardsSaved &&
-          showNextSteps && (
-            <NextStepsScreen
-              recommendedCards={savedCardsList}
-              onBackToCompare={() => handleScreenChange("compare")}
-              onBackToStack={() => handleScreenChange("stack")}
-              onEditInputs={() => handleScreenChange("input")}
             />
           )}
       </main>
-
-      <footer className="border-t border-border/50 py-8 text-center text-xs text-muted-foreground">
-        MVP — local state only. Not financial advice.
-      </footer>
 
       <HardFilterDialog
         open={filterDialogOpen}

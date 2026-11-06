@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
 import { Info } from "lucide-react";
 import { AnswerSelect, MultiAnswerSelect } from "@/components/inputs/AnswerSelect";
 import { FieldHelp } from "@/components/inputs/FieldHelp";
 import { InputStepLayout, inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
 import {
-  CONCRETE_REWARDS_STRATEGIES,
   ISSUER_ECOSYSTEM_OPTIONS,
   LOYALTY_PROGRAM_OPTIONS,
   MAX_CARDS_OPTIONS,
@@ -37,32 +35,13 @@ interface PreferencesStepProps {
   onChange: (preferences: UserPreferences) => void;
 }
 
-/** Both concrete strategies mean every option is open, so select No preference. */
-function collapseFullStrategySelection(
+/** One choice. A saved multi-select (both strategies) reads as No preference. */
+function selectedStrategy(
   strategies: RewardsStrategy[] | undefined
-): RewardsStrategy[] {
-  const list = strategies?.length
-    ? strategies
-    : (["no_preference"] as RewardsStrategy[]);
-  const hasEveryConcrete = CONCRETE_REWARDS_STRATEGIES.every((strategy) =>
-    list.includes(strategy)
-  );
-  return hasEveryConcrete ? ["no_preference"] : list;
-}
-
-/** Keep an explicit transferable + portal pair checked instead of collapsing it. */
-function displayedStrategies(
-  strategies: RewardsStrategy[] | undefined
-): RewardsStrategy[] {
-  const list = strategies?.length ? strategies : (["no_preference"] as RewardsStrategy[]);
-  if (
-    list.includes("transferable") &&
-    list.includes("portal") &&
-    !list.includes("no_preference")
-  ) {
-    return list;
-  }
-  return collapseFullStrategySelection(list);
+): RewardsStrategy {
+  const list = strategies ?? [];
+  if (list.length === 1) return list[0];
+  return "no_preference";
 }
 
 function applySelectionChange<T extends string>(
@@ -85,19 +64,7 @@ export function PreferencesStep({
   onChange,
 }: PreferencesStepProps) {
   const selectedPrograms = preferences.preferredLoyaltyPrograms ?? [];
-  const selectedStrategies = displayedStrategies(preferences.rewardsStrategies);
-
-  useEffect(() => {
-    const raw = preferences.rewardsStrategies;
-    if (!raw?.length) return;
-    if (raw.includes("transferable") && raw.includes("portal")) return;
-    const collapsed = collapseFullStrategySelection(raw);
-    const unchanged =
-      collapsed.length === raw.length &&
-      collapsed.every((strategy, index) => strategy === raw[index]);
-    if (unchanged) return;
-    onChange({ ...preferences, rewardsStrategies: collapsed });
-  }, [preferences, onChange]);
+  const strategy = selectedStrategy(preferences.rewardsStrategies);
 
   const set = <K extends keyof UserPreferences>(
     key: K,
@@ -147,22 +114,6 @@ export function PreferencesStep({
     set("rewardTypePreference", rewardTypePreference);
   };
 
-  const toggleStrategy = (strategy: RewardsStrategy, checked: boolean) => {
-    if (strategy === "no_preference") {
-      set("rewardsStrategies", ["no_preference"]);
-      return;
-    }
-
-    const withoutNone = selectedStrategies.filter((s) => s !== "no_preference");
-    const next = checked
-      ? withoutNone.includes(strategy)
-        ? withoutNone
-        : [...withoutNone, strategy]
-      : withoutNone.filter((s) => s !== strategy);
-
-    set("rewardsStrategies", collapseFullStrategySelection(next));
-  };
-
   const toggleProgram = (
     program: LoyaltyProgramSelection,
     checked: boolean
@@ -188,10 +139,8 @@ export function PreferencesStep({
 
   return (
     <InputStepLayout
-      heading="What are your hard constraints?"
-      instructions={[
-        "Answer the below questions to help define what cards we should recommend based on your hard constraints",
-      ]}
+      heading="What limits should we follow?"
+      description="Set the limits for your recommendations, including how many cards you’ll manage and which rewards you’re open to."
     >
       <div className="space-y-5">
       <div className={inputStepFormGroupClassName}>
@@ -216,6 +165,9 @@ export function PreferencesStep({
           <h4 className="text-base font-medium">
             What rewards bank(s) are you willing to use?
           </h4>
+          <p className="mt-1 text-base font-medium text-muted-foreground">
+            Select all that apply.
+          </p>
         </div>
         <MultiAnswerSelect
           label="What rewards bank(s) are you willing to use?"
@@ -226,7 +178,9 @@ export function PreferencesStep({
           ]}
           emptyLabel="No preference"
           onValueChange={(next) => {
-            const previous = isFlexible ? ["flexible" as const] : selectedIssuers;
+            const previous = isFlexible
+              ? ["flexible" as const]
+              : selectedIssuers;
             applySelectionChange(previous, next, (value, checked) => {
               if (value === "flexible") toggleNoBankPreference(checked);
               else toggleIssuer(value, checked);
@@ -235,9 +189,9 @@ export function PreferencesStep({
         />
         {mismatchedKeptCards.length > 0 &&
           isEcosystemFilterActive(preferences.preferredEcosystems) && (
-            <div className="flex gap-3 rounded-lg border border-amber-200/80 bg-amber-50/90 px-3 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+            <div className="flex gap-3 rounded-xl border border-amber-200/20 bg-amber-200/10 px-3 py-3 text-sm text-amber-50">
               <Info className="mt-0.5 h-4 w-4 shrink-0" />
-              <p className="text-xs leading-relaxed">
+              <p className="text-sm leading-relaxed">
                 Keep cards outside{" "}
                 {preferredLabels.join(", ") || "this filter"}:{" "}
                 {mismatchedKeptCards.map((c) => c.name).join(", ")}.
@@ -273,18 +227,12 @@ export function PreferencesStep({
               <h4 className="text-base font-medium">
                 Which rewards strategies are you willing to use?
               </h4>
-              <p className="mt-1 text-base font-medium text-muted-foreground">
-                Select all that apply.
-              </p>
             </div>
-            <MultiAnswerSelect
+            <AnswerSelect
               label="Which rewards strategies are you willing to use?"
-              value={selectedStrategies}
+              value={strategy}
               options={REWARDS_STRATEGY_OPTIONS}
-              emptyLabel="No preference"
-              onValueChange={(next) => {
-                applySelectionChange(selectedStrategies, next, toggleStrategy);
-              }}
+              onValueChange={(value) => set("rewardsStrategies", [value])}
               renderOption={(option) => (
                 <span className="inline-flex min-w-0 items-center">
                   {option.label}

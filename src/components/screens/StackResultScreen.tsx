@@ -6,9 +6,11 @@ import { InputStepLayout } from "@/components/inputs/InputStepLayout";
 import { ConstraintTradeoffNote } from "@/components/output/ConstraintTradeoffNote";
 import { StackWallet } from "@/components/output/StackWallet";
 import { Button } from "@/components/ui/button";
-
-const footerButtonClass =
-  "h-14 min-h-14 rounded-2xl px-6 text-base font-semibold sm:h-16 sm:min-h-16 sm:px-8";
+import {
+  advisoryClassName,
+  stepActionButtonClassName,
+  stepActionsClassName,
+} from "@/components/ui/surfaces";
 import type {
   LoyaltyProgramSelection,
   OptimizationResult,
@@ -87,13 +89,7 @@ export function StackResultScreen({
     <div className="mx-auto max-w-3xl space-y-10">
       <InputStepLayout
         heading={heading}
-        instructions={[
-          "Click through each of the cards in the wallet below.",
-          "For each card, review the benefits and edit the value for each to determine what you would value it at.",
-          "Save each card.",
-          "Repeat this process with each card in the wallet.",
-          "When you have saved all cards, press Compare to see how it compares to your current wallet",
-        ]}
+        description="Open each card, set what its benefits are worth to you, and save it. When every card is saved, compare this stack with your current wallet."
       >
         <StackWallet
           stack={view.stack}
@@ -109,16 +105,16 @@ export function StackResultScreen({
       </InputStepLayout>
 
       {result.constraintTradeoff ? (
-        <div className="rounded-2xl border border-amber-200/70 bg-gradient-to-br from-amber-50/90 to-orange-50/40 px-5 py-5 dark:border-amber-900/40 dark:from-amber-950/25 dark:to-orange-950/15">
+        <div className={`${advisoryClassName} px-5 py-5`}>
           <ConstraintTradeoffNote tradeoff={result.constraintTradeoff} />
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-6">
+      <div className={stepActionsClassName}>
         <Button
           type="button"
           variant="ghost"
-          className={footerButtonClass}
+          className={stepActionButtonClassName}
           onClick={onEditInputs}
         >
           <ArrowLeft className="mr-2 size-5" />
@@ -126,7 +122,7 @@ export function StackResultScreen({
         </Button>
         <Button
           type="button"
-          className={footerButtonClass}
+          className={`${stepActionButtonClassName} sm:ml-auto`}
           onClick={onCompare}
           disabled={!allCardsSaved}
         >

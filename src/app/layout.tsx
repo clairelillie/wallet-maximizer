@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
 const sans = Plus_Jakarta_Sans({
@@ -16,9 +17,9 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Credit Card Stack Optimizer",
+  title: "Wallet Maximizer",
   description:
-    "Build an intentional 3–5 card wallet. Know which card to use, and which annual fees are worth it.",
+    "Plan a short credit card wallet from the cards you already have, how you spend, and the benefits you use.",
 };
 
 export default function RootLayout({
@@ -31,7 +32,9 @@ export default function RootLayout({
       lang="en"
       className={`${sans.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="min-h-full font-sans">{children}</body>
+      <body className="min-h-full font-sans">
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   );
 }

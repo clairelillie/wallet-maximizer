@@ -154,6 +154,7 @@ export const LOYALTY_PROGRAM_OPTIONS: Array<{
   { value: "american", label: "American Airlines" },
   { value: "delta", label: "Delta" },
   { value: "hilton", label: "Hilton" },
+  { value: "hyatt", label: "Hyatt" },
   { value: "jetblue", label: "JetBlue" },
   { value: "marriott", label: "Marriott" },
   { value: "southwest", label: "Southwest" },

@@ -60,7 +60,7 @@ export function HardFilterDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex gap-3">
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-200/15 text-amber-200">
             <Info className="h-4 w-4" />
           </div>
           <div className="space-y-2">
@@ -88,7 +88,7 @@ export function HardFilterDialog({
           </div>
         </div>
 
-        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end [&_button]:h-auto [&_button]:min-h-10 [&_button]:w-full [&_button]:whitespace-normal sm:[&_button]:w-auto">
           <Button type="button" variant="ghost" onClick={onKeepFilter}>
             Keep filter and calculate
           </Button>

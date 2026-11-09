@@ -1,2 +1,2 @@
-/** Public support address. Replace this when the real inbox is ready. */
-export const SUPPORT_EMAIL = "support@walletmaximizer.app";
+/** Public support address. */
+export const SUPPORT_EMAIL = "walletmaximizer@gmail.com";

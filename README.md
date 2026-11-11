@@ -126,4 +126,4 @@ src/lib/engine/explanations.ts       # Keep/add, role, and the reason text
 src/catalog/                         # Earn rates, fees, and credits
 ```
 
-`src/lib/engine/engine.test.ts` covers the recommendation rules. Edit a catalog file when a fee, earn rate, or credit changes. `npm run catalog:refresh` drafts those edits from issuer pages. It does not apply them on its own.
+`src/lib/engine/engine.test.ts` covers the recommendation rules. Edit a catalog file when a fee, earn rate, or credit changes. `npm run catalog:refresh` drafts those edits from issuer pages. It does not apply them on its own. Copy the decline command under a draft you want to keep as-is; the next refresh skips that proposed value. The GitHub Action runs that draft every Monday at 5pm Eastern and emails the review.

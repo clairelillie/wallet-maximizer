@@ -332,6 +332,80 @@ describe("guardProposal", () => {
     ]);
   });
 
+  it("keeps a Capital One Travel heading on the portal and lists each rate once", () => {
+    const savorPage = [
+      "Earn unlimited 3% cash back on dining, entertainment, popular streaming services and at grocery stores.",
+      "Book with Capital One Travel Earn unlimited 5% cash back on hotels, vacation rentals and rental car bookings.",
+      "Plus, save an average of 15% on flights with price prediction from Capital One Travel.",
+    ].join(" ");
+    const quote =
+      "Earn unlimited 5% cash back on hotels, vacation rentals and rental car bookings";
+    const paths = [
+      "travelMultipliers.hotels.portal",
+      "travelMultipliers.hotels.direct",
+      "travelMultipliers.rentalCars.portal",
+      "travelMultipliers.rentalCars.direct",
+    ];
+    const guarded = guardProposal(card, savorPage, {
+      changes: [...paths, ...paths].map((path) => ({
+        path,
+        proposed: 5,
+        evidence: quote,
+      })),
+    });
+    expect(guarded.rejected).toEqual([]);
+    expect(guarded.changes).toEqual([
+      {
+        path: "travelMultipliers.hotels.portal",
+        current: 1,
+        proposed: 5,
+        evidence: quote,
+      },
+      {
+        path: "travelMultipliers.rentalCars.portal",
+        current: 1,
+        proposed: 5,
+        evidence: quote,
+      },
+    ]);
+  });
+
+  it("reads a book-directly heading when the rate sentence does not repeat it", () => {
+    const quote = "Earn 4x points on flights and hotels.";
+    const guarded = guardProposal(card, `Book directly ${quote}`, {
+      changes: [
+        { path: "travelMultipliers.flights.direct", proposed: 4, evidence: quote },
+        { path: "travelMultipliers.hotels.portal", proposed: 4, evidence: quote },
+      ],
+    });
+    expect(guarded.changes.map((change) => change.path)).toEqual([
+      "travelMultipliers.flights.direct",
+      "travelMultipliers.hotels.direct",
+    ]);
+    expect(guarded.rejected).toEqual([]);
+  });
+
+  it("does not let an earlier portal sentence relabel the next rate", () => {
+    const quote = "Earn 4x points on flights and hotels.";
+    const guarded = guardProposal(
+      card,
+      `Earn 8x points on Chase Travel. ${quote}`,
+      {
+        changes: [
+          { path: "travelMultipliers.flights.portal", proposed: 4, evidence: quote },
+          { path: "travelMultipliers.hotels.direct", proposed: 4, evidence: quote },
+        ],
+      }
+    );
+    expect(guarded.changes.map((change) => change.path)).toEqual([
+      "travelMultipliers.flights.portal",
+      "travelMultipliers.flights.direct",
+      "travelMultipliers.hotels.portal",
+      "travelMultipliers.hotels.direct",
+    ]);
+    expect(guarded.rejected).toEqual([]);
+  });
+
   it("does not clear lounge access", () => {
     const guarded = guardProposal(card, page, {
       changes: [

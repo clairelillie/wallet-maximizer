@@ -126,13 +126,15 @@ export function guardProposal(
       continue;
     }
 
-    const accepted = acceptChange(card, path, raw.proposed, evidence);
+    const accepted = acceptChange(card, pageText, path, raw.proposed, evidence);
     if (accepted.reason) {
       rejected.push({ path, reason: accepted.reason });
       continue;
     }
-    if (accepted.change) changes.push(accepted.change);
-    if (accepted.changes) changes.push(...accepted.changes);
+    if (accepted.change) addChange(changes, rejected, accepted.change);
+    if (accepted.changes) {
+      for (const change of accepted.changes) addChange(changes, rejected, change);
+    }
     if (accepted.note) notes.push(accepted.note);
   }
 
@@ -149,8 +151,26 @@ export function guardProposal(
   return { changes, newBenefits, rejected, notes };
 }
 
+function addChange(
+  changes: AcceptedChange[],
+  rejected: RejectedProposal[],
+  change: AcceptedChange
+): void {
+  const existing = changes.find((item) => item.path === change.path);
+  if (!existing) {
+    changes.push(change);
+    return;
+  }
+  if (existing.proposed === change.proposed) return;
+  rejected.push({
+    path: change.path,
+    reason: "The page was read as two different values for this field.",
+  });
+}
+
 function acceptChange(
   card: CatalogCardDefinition,
+  pageText: string,
   path: string,
   proposed: unknown,
   evidence: string
@@ -205,7 +225,7 @@ function acceptChange(
     if (travelAmount === null || travelAmount < 0 || travelAmount > 20) {
       return { reason: "Earn rates must be a number from 0 to 20." };
     }
-    return acceptTravelRate(card, path, travelAmount, evidence);
+    return acceptTravelRate(card, pageText, path, travelAmount, evidence);
   }
 
   const numeric = readNumericPath(card, path);
@@ -234,6 +254,7 @@ type TravelChannelName = "flights" | "hotels" | "rentalCars";
  */
 function acceptTravelRate(
   card: CatalogCardDefinition,
+  pageText: string,
   path: string,
   amount: number,
   evidence: string
@@ -242,7 +263,9 @@ function acceptTravelRate(
     return { reason: "The quoted sentence does not contain that earn rate." };
   }
   const clause = rateClause(evidence, amount);
-  const side = bookingSide(clause);
+  // The model often quotes the rate sentence and drops the heading above it
+  // ("Book with Capital One Travel"). That heading is what says portal vs direct.
+  const side = bookingSide(clause, headingBeforeQuote(pageText, evidence));
   const channels = channelsForEvidence(evidence, clause);
   const requested = travelPathParts(path);
 
@@ -336,18 +359,60 @@ function travelTargetPaths(
   };
 }
 
-function bookingSide(clause: string): "portal" | "direct" | "flat" {
-  const text = normalizeText(clause);
-  const portal = /portal|chase travel|capital one travel|citi travel|cititravel|booked through|booked on/.test(text);
-  // "book directly" is the direct channel. "made directly with Southwest" is not:
-  // a co-brand merchant bonus with no portal split still fills both sides.
-  const direct =
-    /\bbook(?:ed|ing)? directly\b|\bbook(?:ed|ing)? direct\b|\bdirectly booked\b|\bdirect bookings?\b|travel worldwide/.test(
-      text
-    );
+const PORTAL_BOOKING =
+  /portal|chase travel|capital one travel|citi travel|cititravel|amex travel|american express travel|booked through|booked on|\bbook with\b(?:\s+\w+){0,4}\s+travel\b/;
+// "book directly" is the direct channel. "made directly with Southwest" is not:
+// a co-brand merchant bonus with no portal split still fills both sides.
+const DIRECT_BOOKING =
+  /\bbook(?:ed|ing)? directly\b|\bbook(?:ed|ing)? direct\b|\bdirectly booked\b|\bdirect bookings?\b|travel worldwide/;
+
+/** How far above a rate sentence a booking heading can sit. */
+const HEADING_WINDOW = 100;
+
+function bookingSide(clause: string, heading = ""): "portal" | "direct" | "flat" {
+  const fromClause = bookingSideIn(clause);
+  if (fromClause !== "flat") return fromClause;
+  return bookingSideIn(heading);
+}
+
+function bookingSideIn(text: string): "portal" | "direct" | "flat" {
+  const normalized = normalizeText(text);
+  const portal = PORTAL_BOOKING.test(normalized);
+  const direct = DIRECT_BOOKING.test(normalized);
   if (portal && !direct) return "portal";
   if (direct && !portal) return "direct";
   return "flat";
+}
+
+/**
+ * The label directly above the quoted sentence. Stops at the previous sentence
+ * so an earlier rate does not relabel this one. When the quote appears more
+ * than once, prefer the copy that sits under a portal or direct heading.
+ */
+function headingBeforeQuote(pageText: string, evidence: string): string {
+  const page = normalizeText(pageText);
+  const quote = normalizeText(evidence);
+  if (!quote) return "";
+  const headings: string[] = [];
+  let from = 0;
+  while (from < page.length) {
+    const index = page.indexOf(quote, from);
+    if (index < 0) break;
+    headings.push(precedingHeading(page, index));
+    from = index + Math.max(quote.length, 1);
+  }
+  return headings.find((heading) => bookingSideIn(heading) !== "flat") ?? headings[0] ?? "";
+}
+
+function precedingHeading(page: string, index: number): string {
+  if (index <= 0) return "";
+  const window = page.slice(Math.max(0, index - HEADING_WINDOW), index);
+  const breakAt = Math.max(
+    window.lastIndexOf(". "),
+    window.lastIndexOf("! "),
+    window.lastIndexOf("? ")
+  );
+  return (breakAt >= 0 ? window.slice(breakAt + 2) : window).trim();
 }
 
 function travelChannels(clause: string): "all" | TravelChannelName[] | "none" {

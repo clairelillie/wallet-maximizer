@@ -18,6 +18,9 @@
 /.next-local/
 /out/
 
+# Next dev cache written outside .next. Webpack output embeds local absolute paths.
+/tmp/
+
 # production
 /build
 

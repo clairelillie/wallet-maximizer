@@ -234,6 +234,36 @@ describe("benefit personalization", () => {
     expect(sumBenefitValues(lines)).toBe(20);
   });
 
+  it("lists Venture credits at $0 until the user sets a value", () => {
+    const venture = catalogToNormalized(
+      CARD_CATALOG.find((c) => c.name === "Capital One Venture")!,
+      "venture"
+    );
+    const lines = calculatePersonalizedBenefits(venture, heavyTravelHabits);
+    const ids = lines.map((line) => line.id.split("::")[0]).sort();
+    expect(ids).toEqual([
+      "venture-global-entry",
+      "venture-lifestyle-collection",
+    ]);
+
+    const lifestyle = lines.find((line) =>
+      line.id.startsWith("venture-lifestyle-collection")
+    );
+    expect(lifestyle?.valuedBy).toBe("manual");
+    expect(lifestyle?.maxValue).toBe(50);
+    expect(lifestyle?.effectiveValue).toBe(0);
+    expect(lines.every((line) => line.valuedBy === "manual")).toBe(true);
+    expect(sumBenefitValues(lines)).toBe(0);
+
+    const withCredit = calculatePersonalizedBenefits(venture, heavyTravelHabits, {
+      [lifestyle!.id]: 50,
+    });
+    expect(
+      withCredit.find((line) => line.id === lifestyle!.id)?.effectiveValue
+    ).toBe(50);
+    expect(sumBenefitValues(withCredit)).toBe(50);
+  });
+
   it("lists optional credits at $0 until the user sets a value", () => {
     const plat = catalogToNormalized(
       CARD_CATALOG.find((c) => c.name === "Amex Platinum")!,

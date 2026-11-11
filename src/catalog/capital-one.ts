@@ -98,6 +98,27 @@ export const CAPITAL_ONE_CARDS: CatalogCardDefinition[] = [
     rewardType: "points",
     isPremium: false,
     hasLoungeAccess: false,
+    benefits: [
+      {
+        id: "venture-global-entry",
+        label: "Global Entry or TSA PreCheck",
+        description:
+          "Up to a $120 statement credit when you use this card to apply for Global Entry or TSA PreCheck.",
+        maxAnnualValue: 120,
+        valuedBy: "manual",
+        stackRule: "once",
+        stackGroup: "trustedTraveler",
+      },
+      {
+        id: "venture-lifestyle-collection",
+        label: "Lifestyle Collection experience credit",
+        description:
+          "A $50 experience credit to use during every Lifestyle Collection stay.",
+        maxAnnualValue: 50,
+        valuedBy: "manual",
+        stackRule: "each",
+      },
+    ],
   },
   {
     id: "capital-one-savor",

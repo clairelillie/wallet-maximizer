@@ -7,6 +7,12 @@ on:
     - cron: "0 21 * * 1"
     - cron: "0 22 * * 1"
   workflow_dispatch:
+    inputs:
+      trial_email:
+        description: Send a short test email and skip the catalog review
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -33,7 +39,7 @@ jobs:
 
   refresh:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
+    if: needs.gate.outputs.run == 'true' && github.event.inputs.trial_email != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -128,6 +134,45 @@ jobs:
           message["From"] = username
           message["To"] = recipient
           message.set_content(body)
+          with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
+              smtp.login(username, password)
+              smtp.send_message(message)
+          print(f"Emailed {recipient}")
+          PY
+
+  trial:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.trial_email == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send trial email
+        env:
+          SMTP_USERNAME: ${{ secrets.CATALOG_REFRESH_SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.CATALOG_REFRESH_SMTP_PASSWORD }}
+          EMAIL_TO: clairelillie12@gmail.com
+        run: |
+          python3 <<'PY'
+          import os
+          import smtplib
+          from email.message import EmailMessage
+
+          username = os.environ.get("SMTP_USERNAME", "").strip()
+          password = os.environ.get("SMTP_PASSWORD", "").strip()
+          recipient = os.environ["EMAIL_TO"]
+          if not username or not password:
+              raise SystemExit(
+                  "Add repository secrets CATALOG_REFRESH_SMTP_USERNAME and "
+                  "CATALOG_REFRESH_SMTP_PASSWORD. The password is a Gmail app password "
+                  "for the sending account, not the normal Gmail password."
+              )
+
+          message = EmailMessage()
+          message["Subject"] = "Catalog refresh: trial email"
+          message["From"] = username
+          message["To"] = recipient
+          message.set_content(
+              "This is a trial of the Monday catalog refresh email.\n\n"
+              "Future messages at 5pm Eastern on Mondays will include the catalog review.\n"
+          )
           with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
               smtp.login(username, password)
               smtp.send_message(message)

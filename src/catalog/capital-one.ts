@@ -126,10 +126,11 @@ export const CAPITAL_ONE_CARDS: CatalogCardDefinition[] = [
     annualFee: 0,
     baseMultiplier: 1,
     multipliers: { dining: 3, grocery: 3 },
+    // Cap One Travel: 5x hotels and rental cars; flights stay at 1x.
     travelMultipliers: {
       flights: { portal: 1, direct: 1 },
-      hotels: { portal: 1, direct: 1 },
-      rentalCars: { portal: 1, direct: 1 },
+      hotels: { portal: 5, direct: 1 },
+      rentalCars: { portal: 5, direct: 1 },
     },
     ecosystem: "capital-one",
     rewardType: "cashback",
@@ -145,10 +146,11 @@ export const CAPITAL_ONE_CARDS: CatalogCardDefinition[] = [
     annualFee: 0,
     baseMultiplier: 1.5,
     multipliers: {},
+    // Cap One Travel: 5x hotels and rental cars; flights stay at 1.5x.
     travelMultipliers: {
       flights: { portal: 1.5, direct: 1.5 },
-      hotels: { portal: 1.5, direct: 1.5 },
-      rentalCars: { portal: 1.5, direct: 1.5 },
+      hotels: { portal: 5, direct: 1.5 },
+      rentalCars: { portal: 5, direct: 1.5 },
     },
     ecosystem: "capital-one",
     rewardType: "cashback",

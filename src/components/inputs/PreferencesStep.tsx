@@ -163,14 +163,14 @@ export function PreferencesStep({
       <div className="space-y-4">
         <div>
           <h4 className="text-base font-medium">
-            What rewards bank(s) are you willing to use?
+            What card issuer(s) are you willing to use?
           </h4>
           <p className="mt-1 text-base font-medium text-muted-foreground">
             Select all that apply.
           </p>
         </div>
         <MultiAnswerSelect
-          label="What rewards bank(s) are you willing to use?"
+          label="What card issuer(s) are you willing to use?"
           value={isFlexible ? ["flexible"] : selectedIssuers}
           options={[
             { value: "flexible" as const, label: "No preference" },

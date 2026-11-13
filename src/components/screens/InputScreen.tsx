@@ -122,7 +122,7 @@ export function InputScreen({
   return (
     <div className="mx-auto w-full max-w-[1368px]">
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.7fr)] lg:gap-x-16">
-        <h2 className="text-[2.15rem] font-bold leading-[1.08] tracking-tight text-balance text-[#102b43] sm:text-[3.5rem] sm:leading-[1.15]">
+        <h2 className="text-[1.85rem] font-bold leading-[1.08] tracking-tight text-balance text-[#102b43] sm:text-4xl lg:text-[3.5rem] lg:leading-[1.15]">
           {currentStep.heading}
         </h2>
         <p className="text-[17px] leading-relaxed text-[#506578] lg:pt-3">
@@ -131,7 +131,10 @@ export function InputScreen({
       </div>
 
       <div className="mt-8 grid gap-6 lg:mt-14 lg:grid-cols-[236px_minmax(0,1fr)] lg:items-start lg:gap-x-[52px]">
-        <nav className="flex gap-2 overflow-x-auto lg:flex-col lg:gap-[26px] lg:overflow-visible">
+        <nav
+          aria-label="Input steps"
+          className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:flex-col lg:gap-[26px]"
+        >
           {INPUT_STEPS.map((item) => {
             const active = item.id === step;
             return (
@@ -139,7 +142,7 @@ export function InputScreen({
                 key={item.id}
                 type="button"
                 onClick={() => setStep(item.id)}
-                className={`flex shrink-0 items-center rounded-xl border px-6 py-4 text-left text-lg font-bold tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:h-[60px] lg:w-full lg:py-0 ${
+                className={`flex h-12 min-h-12 w-full items-center justify-center rounded-xl border px-3 text-center text-base font-bold tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:h-[60px] lg:justify-start lg:px-6 lg:text-left lg:text-lg ${
                   active
                     ? "border-[#a8bdc9] bg-[#e0f2e9] text-[#006b50]"
                     : "border-transparent text-[#102b43] hover:bg-[#e0f2e9]/60"

@@ -343,9 +343,9 @@ function CardFan({
           {savedCount} of {stack.length} saved
         </p>
       </div>
-      <div className="overflow-x-auto">
+      <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1">
         <div
-          className="mx-auto flex w-max min-w-full items-start justify-center gap-4 px-3 py-8 sm:gap-8"
+          className="mx-auto flex w-max min-w-full snap-x snap-mandatory items-start justify-start gap-3 px-1 py-8 sm:justify-center sm:gap-8"
           role="listbox"
           aria-label="Recommended cards"
         >
@@ -358,70 +358,80 @@ function CardFan({
             const isSelected = card.id === selectedId;
             const isSaved = Boolean(savedByCardId[card.id]);
             const status = isSelected
-              ? "currently viewing"
+              ? isSaved
+                ? "currently viewing, saved"
+                : "currently viewing"
               : isSaved
                 ? "saved"
                 : "click to open";
             return (
               <div
                 key={card.id}
-                className="flex w-[300px] shrink-0 flex-col items-center"
+                className="flex w-[min(18.75rem,78vw)] shrink-0 snap-center flex-col items-center sm:w-[300px]"
               >
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  aria-label={`${card.name}, ${status}`}
-                  onClick={() => onSelect(card.id)}
-                  className={`relative h-[189px] w-full touch-manipulation rounded-[18px] transition-[transform,filter,opacity] duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-                    isSelected
-                      ? "opacity-100"
-                      : "opacity-75 hover:opacity-100"
+                <div
+                  className={`relative aspect-[300/189] w-full transition-[transform,opacity] duration-300 ease-out ${
+                    isSelected ? "opacity-100" : "opacity-75 hover:opacity-100"
                   }`}
                   style={{
                     transform: isSelected
                       ? `translateY(-12px) rotate(${tilt * 0.25}deg) scale(1.04)`
                       : `rotate(${tilt}deg)`,
                     zIndex: isSelected ? 20 : 10 + index,
-                    filter: isSelected
-                      ? "drop-shadow(0 18px 16px rgba(16,43,67,0.24))"
-                      : "drop-shadow(0 10px 9px rgba(16,43,67,0.15))",
-                    outline: isSelected ? "3px solid #102b43" : undefined,
-                    outlineOffset: isSelected ? "4px" : undefined,
                   }}
                 >
-                  <img
-                    src={face.art}
-                    alt=""
-                    className="pointer-events-none absolute inset-0 size-full"
-                  />
-                  <img
-                    src={face.chip}
-                    alt=""
-                    className="pointer-events-none absolute top-[26px] left-6 h-[27px] w-[36px]"
-                  />
-                  <img
-                    src={face.mark}
-                    alt=""
-                    className="pointer-events-none absolute top-[27px] left-[71px] h-6 w-[13px]"
-                  />
-                  <img
-                    src={face.pay}
-                    alt=""
-                    className="pointer-events-none absolute top-6 right-5 h-[23px] w-[37px]"
-                  />
-                  <span
-                    className="absolute top-[104px] left-6 w-[252px] text-left text-base font-bold leading-[1.4] tracking-tight"
-                    style={{ color: face.ink }}
-                  >
-                    {card.name}
-                  </span>
-                  {isSaved ? (
-                    <span className="absolute top-6 right-16 flex size-5 items-center justify-center rounded-full bg-white text-primary">
-                      <Check className="size-3" strokeWidth={3} />
-                    </span>
+                  {isSelected ? (
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute -inset-[7px] rounded-[24px] border-[3px] border-[#006b50] bg-white"
+                    />
                   ) : null}
-                </button>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    aria-label={`${card.name}, ${status}`}
+                    onClick={() => onSelect(card.id)}
+                    className="relative h-full w-full touch-manipulation rounded-[18px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                    style={{
+                      filter: isSelected
+                        ? "drop-shadow(0 18px 16px rgba(16,43,67,0.24))"
+                        : "drop-shadow(0 10px 9px rgba(16,43,67,0.15))",
+                    }}
+                  >
+                    <img
+                      src={face.art}
+                      alt=""
+                      className="pointer-events-none absolute inset-0 size-full"
+                    />
+                    <img
+                      src={face.chip}
+                      alt=""
+                      className="pointer-events-none absolute top-[26px] left-6 h-[27px] w-[36px]"
+                    />
+                    <img
+                      src={face.mark}
+                      alt=""
+                      className="pointer-events-none absolute top-[27px] left-[71px] h-6 w-[13px]"
+                    />
+                    <img
+                      src={face.pay}
+                      alt=""
+                      className="pointer-events-none absolute top-6 right-5 h-[23px] w-[37px]"
+                    />
+                    <span
+                      className="absolute top-[55%] right-5 left-6 text-left text-[0.95rem] font-bold leading-[1.3] tracking-tight sm:text-base"
+                      style={{ color: face.ink }}
+                    >
+                      {card.name}
+                    </span>
+                    {isSaved ? (
+                      <span className="absolute top-6 right-16 flex size-5 items-center justify-center rounded-full bg-white text-primary">
+                        <Check className="size-3" strokeWidth={3} />
+                      </span>
+                    ) : null}
+                  </button>
+                </div>
                 <p className="mt-4 flex h-7 items-center" aria-hidden>
                   {isSelected ? (
                     <span className="inline-flex h-7 items-center gap-1 rounded-full bg-[#102b43] px-3 text-xs font-bold tracking-wide text-white">
@@ -663,7 +673,7 @@ export function StackWallet({
                   · {selectedIndex + 1} of {stack.length}
                 </span>
               </p>
-              <h4 className="mt-1 text-[2rem] font-bold tracking-tight text-foreground">
+              <h4 className="mt-1 break-words text-[1.65rem] font-bold leading-tight tracking-tight text-foreground sm:text-[2rem]">
                 {selected.name}
               </h4>
             </div>
@@ -717,7 +727,7 @@ export function StackWallet({
                   return (
                     <li
                       key={row.category}
-                      className="flex items-baseline justify-between gap-3 text-base font-medium"
+                      className="flex flex-col gap-1 text-base font-medium sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"
                     >
                       <span className="min-w-0">
                         <span className="font-medium">{row.label}</span>
@@ -733,7 +743,7 @@ export function StackWallet({
                           · ${row.annualSpend.toLocaleString()}/yr spend
                         </span>
                       </span>
-                      <span className="shrink-0 text-right font-mono text-base font-medium tabular-nums text-gain">
+                      <span className="shrink-0 text-left font-mono text-base font-medium tabular-nums text-gain sm:text-right">
                         <span className="block">{earn.primary}/yr</span>
                         {earn.secondary ? (
                           <span className="block text-[11px] text-muted-foreground">

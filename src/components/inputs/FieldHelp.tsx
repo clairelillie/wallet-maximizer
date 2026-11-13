@@ -54,7 +54,7 @@ export function FieldHelp({
         aria-expanded={open}
         aria-controls={open ? dialogId : undefined}
         onClick={() => setOpen(true)}
-        className="inline-flex size-4 shrink-0 items-center justify-center align-middle rounded-full text-muted-foreground ring-1 ring-border transition-colors hover:text-foreground hover:ring-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="relative inline-flex size-4 shrink-0 items-center justify-center align-middle rounded-full text-muted-foreground ring-1 ring-border transition-colors after:absolute after:-inset-3.5 after:content-[''] hover:text-foreground hover:ring-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {icon === "exclamation" ? (
           <Info className="size-2.5" aria-hidden="true" />

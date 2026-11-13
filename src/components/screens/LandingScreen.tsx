@@ -24,7 +24,7 @@ export function LandingScreen({ onContinue }: LandingScreenProps) {
           <div className="mt-7">
             <Button
               type="button"
-              className="h-[62px] w-[224px] rounded-[13px] text-[18px] font-bold shadow-[0_4px_6px_rgba(0,107,80,0.14)]"
+              className="h-[62px] w-full rounded-[13px] text-[18px] font-bold shadow-[0_4px_6px_rgba(0,107,80,0.14)] sm:w-[224px]"
               onClick={onContinue}
             >
               Get started
@@ -43,7 +43,8 @@ export function LandingScreen({ onContinue }: LandingScreenProps) {
 
 function HeroArt() {
   return (
-    <div className="relative mx-auto aspect-[600/520] w-full max-w-[640px]">
+    <div className="relative mx-auto aspect-[600/520] w-full max-w-[640px] overflow-hidden">
+      <div className="absolute inset-0 origin-center scale-[0.9] sm:scale-100">
       <img
         src="/figma/home/backdrop.svg"
         alt=""
@@ -79,6 +80,7 @@ function HeroArt() {
         pay="/figma/home/emerald-pay.svg"
         payClassName="right-[10%] bottom-[12%]"
       />
+      </div>
     </div>
   );
 }

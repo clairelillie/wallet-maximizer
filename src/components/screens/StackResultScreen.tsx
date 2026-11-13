@@ -89,7 +89,7 @@ export function StackResultScreen({
     <div className="mx-auto w-full max-w-[1080px] space-y-10">
       <InputStepLayout
         heading={heading}
-        headingClassName="mx-auto max-w-none text-center text-[2.35rem] font-bold leading-[1.15] tracking-tight text-balance text-[#102b43] sm:text-5xl"
+        headingClassName="mx-auto max-w-none text-center text-[1.75rem] font-bold leading-[1.15] tracking-tight text-balance text-[#102b43] sm:text-4xl lg:text-5xl"
         descriptionClassName="mx-auto mt-4 max-w-3xl text-center text-lg leading-7 text-[#506578]"
         description="Click through each card. Set what its benefits are worth to you, then save it. Once every card is saved, compare this stack with your current wallet."
       >

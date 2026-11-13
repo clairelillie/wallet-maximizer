@@ -14,7 +14,7 @@ export const stepActionsClassName =
   "flex flex-col-reverse gap-3 border-t border-border/50 pt-6 sm:flex-row sm:items-center";
 
 export const stepActionButtonClassName =
-  "h-12 min-h-12 w-full rounded-xl px-5 text-base font-semibold sm:w-auto";
+  "h-auto min-h-12 w-full whitespace-normal rounded-xl px-5 py-3 text-center text-base font-semibold sm:w-auto";
 
 export const fullWidthActionClassName =
   "h-12 min-h-12 w-full rounded-xl px-5 text-base font-semibold";

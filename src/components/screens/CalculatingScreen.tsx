@@ -65,7 +65,7 @@ export function CalculatingScreen({ onSeeResults }: CalculatingScreenProps) {
           </div>
         </div>
       ) : (
-        <div className="w-full max-w-xl space-y-8 rounded-[18px] border border-border bg-card px-8 py-12 text-center shadow-[2px_5px_7px_rgba(16,43,67,0.08)]">
+        <div className="w-full max-w-xl space-y-8 rounded-[18px] border border-border bg-card px-5 py-8 text-center shadow-[2px_5px_7px_rgba(16,43,67,0.08)] sm:px-8 sm:py-12">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#e0f2e9] text-[#006b50]">
             <Check className="h-7 w-7" strokeWidth={2.5} />
           </div>

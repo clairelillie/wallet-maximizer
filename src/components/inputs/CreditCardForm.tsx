@@ -45,6 +45,21 @@ const fieldInputClass = fieldControlClassName;
 const EARNINGS_LOCK_MESSAGE =
   "Earning rates for catalog cards come from our card data, so these fields stay fixed. You can still edit the annual fee.";
 
+/** Keep digits and a single decimal point. Empty and "1." stay editable. */
+function earningsDraftText(raw: string): string {
+  const cleaned = raw.replace(/[^\d.]/g, "");
+  const dot = cleaned.indexOf(".");
+  if (dot === -1) return cleaned;
+  return `${cleaned.slice(0, dot + 1)}${cleaned.slice(dot + 1).replace(/\./g, "")}`;
+}
+
+/** A finished rate, or null while the field is blank or only a decimal point. */
+function parseEarningsDraft(raw: string): number | null {
+  if (raw === "" || raw === ".") return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function EarningsNumberInput({
   id,
   value,
@@ -61,15 +76,20 @@ function EarningsNumberInput({
   onChange: (raw: string) => void;
 }) {
   const pointerActive = useRef(false);
+  // Local text so deleting the last digit does not get overwritten by the saved number.
+  const [draft, setDraft] = useState<string | null>(null);
+  const committed =
+    value == null || Number.isNaN(value) ? "" : String(value);
+  const shown = locked ? committed : (draft ?? committed);
 
   return (
     <Input
       id={id}
-      type="number"
-      min={0}
-      step={0.5}
+      type="text"
+      inputMode="decimal"
+      autoComplete="off"
       placeholder={placeholder}
-      value={value ?? ""}
+      value={shown}
       readOnly={locked}
       aria-readonly={locked || undefined}
       onPointerDown={() => {
@@ -86,6 +106,9 @@ function EarningsNumberInput({
       onFocus={() => {
         if (!locked || pointerActive.current) return;
         onLockedAttempt();
+      }}
+      onBlur={() => {
+        setDraft(null);
       }}
       onClick={() => {
         if (!locked) return;
@@ -105,10 +128,13 @@ function EarningsNumberInput({
       }}
       onChange={(event) => {
         if (locked) {
-          event.currentTarget.value = value == null ? "" : String(value);
+          event.currentTarget.value = committed;
           return;
         }
-        onChange(event.target.value);
+        const next = earningsDraftText(event.target.value);
+        if (next !== event.target.value) event.currentTarget.value = next;
+        setDraft(next);
+        onChange(next);
       }}
       className={locked ? `${fieldInputClass} cursor-default` : fieldInputClass}
     />
@@ -198,7 +224,13 @@ function MultiplierField({
         locked={locked}
         onLockedAttempt={onLockedAttempt}
         onChange={(raw) => {
-          onChange(raw === "" ? undefined : parseFloat(raw));
+          if (raw === "") {
+            onChange(undefined);
+            return;
+          }
+          const parsed = parseEarningsDraft(raw);
+          if (parsed === null) return;
+          onChange(parsed);
         }}
       />
     </div>
@@ -423,9 +455,11 @@ export function CreditCardForm({
               value={card.baseMultiplier}
               locked={earningsLocked}
               onLockedAttempt={showEarningsNotice}
-              onChange={(raw) =>
-                onUpdate({ baseMultiplier: parseFloat(raw) || 1 })
-              }
+              onChange={(raw) => {
+                const parsed = parseEarningsDraft(raw);
+                if (parsed === null) return;
+                onUpdate({ baseMultiplier: parsed });
+              }}
             />
           </div>
         </div>

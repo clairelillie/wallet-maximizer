@@ -19,7 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col overflow-x-clip pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
       <AppHeader onLogoClick={() => goHomeRef.current()} />
       {/* Stay mounted while About is open so in-progress inputs are kept. */}
       <div hidden={onAbout} className="flex-1">

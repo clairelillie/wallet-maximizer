@@ -63,7 +63,7 @@ let updatedDazzlePlayed = false;
 const DAZZLE_MS = 1000;
 
 const sectionTitleClass =
-  "text-[1.7rem] font-bold leading-9 tracking-[-0.5px] text-[#102b43]";
+  "text-[1.45rem] font-bold leading-tight tracking-[-0.5px] text-[#102b43] sm:text-[1.7rem] sm:leading-9";
 
 const earnColumnsClass =
   "grid grid-cols-[minmax(7rem,1.15fr)_minmax(9rem,1.8fr)_8.75rem_7rem_10rem] items-center gap-x-4";
@@ -266,9 +266,9 @@ function CardValueOverview({
           </span>
         </li>
         <li className="flex items-baseline justify-between gap-3 pt-3">
-          <span className="text-[22px] font-bold text-[#102b43]">Net / year</span>
+          <span className="text-lg font-bold text-[#102b43] sm:text-[22px]">Net / year</span>
           <span
-            className={`text-[2rem] font-bold leading-none tabular-nums ${
+            className={`text-[1.65rem] font-bold leading-none tabular-nums sm:text-[2rem] ${
               netValue >= 0 ? "text-[#006b50]" : "text-amber-800"
             }`}
           >
@@ -413,7 +413,7 @@ export function ComparisonScreen({
             type="button"
             aria-pressed={view === "current"}
             onClick={() => selectView("current")}
-            className={`h-[66px] rounded-xl border border-[#a8bdc9] px-4 text-lg ${
+            className={`flex h-auto min-h-[66px] items-center justify-center rounded-xl border border-[#a8bdc9] px-4 py-3 text-center text-base leading-snug sm:text-lg ${
               view === "current"
                 ? "bg-[#e0f2e9] font-bold text-[#006b50]"
                 : "bg-white font-normal text-[#506578] hover:text-[#102b43]"
@@ -425,7 +425,7 @@ export function ComparisonScreen({
             type="button"
             aria-pressed={view === "updated"}
             onClick={() => selectView("updated")}
-            className={`h-[66px] rounded-xl border border-[#a8bdc9] px-4 text-lg ${
+            className={`flex h-auto min-h-[66px] items-center justify-center rounded-xl border border-[#a8bdc9] px-4 py-3 text-center text-base leading-snug sm:text-lg ${
               view === "updated"
                 ? "bg-[#e0f2e9] font-bold text-[#006b50]"
                 : "bg-white font-normal text-[#506578] hover:text-[#102b43]"
@@ -451,7 +451,50 @@ export function ComparisonScreen({
             {earningsEmptyCopy(view, result)}
           </p>
         ) : (
-          <div className="mt-6 overflow-x-auto">
+          <>
+          <ul className="mt-6 space-y-3 md:hidden">
+            {earnLines.map((earnRow) => {
+              const earn = formatCategoryEarn(earnRow, rewardTypePreference);
+              const improved =
+                view === "updated" && improvedCategories.has(earnRow.category);
+              const showRotatingNote =
+                isChaseFreedomFlex({ name: earnRow.cardName }) &&
+                earnLines.find((row) =>
+                  isChaseFreedomFlex({ name: row.cardName })
+                )?.category === earnRow.category;
+              return (
+                <li
+                  key={earnRow.category}
+                  data-improved={improved ? "true" : undefined}
+                  className={cn(
+                    "rounded-[9px] px-4 py-3 text-[#102b43]",
+                    view === "updated" && "bg-[#e0f2e9]"
+                  )}
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 font-medium">{earnRow.label}</span>
+                    <span className="shrink-0 text-right font-bold tabular-nums text-[#006b50]">
+                      <span className="block">{earn.primary}</span>
+                      {earn.secondary ? (
+                        <span className="block text-xs font-medium text-[#506578]">
+                          {earn.secondary}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-[#506578]">{earnRow.cardName}</p>
+                  <p className="mt-1 flex items-center gap-1.5 text-sm tabular-nums text-[#506578]">
+                    <span>{earnRow.multiplier}x</span>
+                    {showRotatingNote ? (
+                      <FreedomFlexEarnNote id={`compare-freedom-flex-${view}-mobile`} />
+                    ) : null}
+                    <span>· ${earnRow.annualSpend.toLocaleString()} a year</span>
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-6 hidden overflow-x-auto md:block">
             <div className="min-w-[40rem]">
             <div
               className={`${earnColumnsClass} h-[52px] rounded-[9px] bg-[#edf4f8] px-4 text-[15px] font-bold text-[#506578]`}
@@ -510,21 +553,22 @@ export function ComparisonScreen({
                 );
               })}
             </ul>
-            <div className="mt-8 flex items-baseline justify-between gap-4">
-              <span className="text-lg font-bold text-[#102b43]">
-                Annual earnings total
-              </span>
-              <span className="text-right text-[2rem] font-bold leading-none tabular-nums text-[#006b50]">
-                <span className="block">{earningsDisplay.primary}</span>
-                {earningsDisplay.secondary ? (
-                  <span className="mt-1 block text-sm font-medium text-[#506578]">
-                    {earningsDisplay.secondary}
-                  </span>
-                ) : null}
-              </span>
-            </div>
             </div>
           </div>
+          <div className="mt-8 flex items-baseline justify-between gap-4">
+            <span className="text-lg font-bold text-[#102b43]">
+              Annual earnings total
+            </span>
+            <span className="text-right text-[1.65rem] font-bold leading-none tabular-nums text-[#006b50] sm:text-[2rem]">
+              <span className="block">{earningsDisplay.primary}</span>
+              {earningsDisplay.secondary ? (
+                <span className="mt-1 block text-sm font-medium text-[#506578]">
+                  {earningsDisplay.secondary}
+                </span>
+              ) : null}
+            </span>
+          </div>
+          </>
         )}
       </section>
 
@@ -598,7 +642,7 @@ export function ComparisonScreen({
       {view === "updated" ? (
         <div className="space-y-6">
           <section
-            className={`rounded-[18px] border px-8 py-8 text-center shadow-[2px_5px_7px_rgba(16,43,67,0.1)] ${
+            className={`rounded-[18px] border px-5 py-6 text-center shadow-[2px_5px_7px_rgba(16,43,67,0.1)] sm:px-8 sm:py-8 ${
               recommendedNet >= 0
                 ? "border-[#a8bdc9] bg-[#e0f2e9]"
                 : "border-amber-200 bg-[#f8efd4]"
@@ -612,7 +656,7 @@ export function ComparisonScreen({
               Versus your current wallet
             </p>
             <p
-              className={`mt-3 text-balance text-[3rem] font-bold leading-none tracking-[-0.9px] ${
+              className={`mt-3 text-balance text-[2rem] font-bold leading-none tracking-[-0.9px] sm:text-[3rem] ${
                 recommendedNet >= 0 ? "text-[#006b50]" : "text-[#102b43]"
               }`}
             >

@@ -30,8 +30,8 @@ export function ScreenNav({
   compareReady,
 }: ScreenNavProps) {
   return (
-    <nav className="px-4 pt-6 sm:px-8 lg:px-[4.5rem]">
-      <div className="mx-auto grid w-full max-w-[1368px] grid-cols-3 gap-3 sm:gap-6">
+    <nav className="px-4 pt-5 sm:px-8 sm:pt-6 lg:px-[4.5rem]">
+      <div className="mx-auto grid w-full max-w-[1368px] grid-cols-3 gap-2 sm:gap-3 xl:gap-6">
         {SCREENS.map((item) => {
           const locked =
             item.id === "compare"
@@ -47,7 +47,9 @@ export function ScreenNav({
               disabled={locked}
               onClick={() => onChange(item.id)}
               className={cn(
-                "flex h-[66px] min-w-0 items-center gap-2 rounded-3xl border px-3 text-left transition-colors sm:gap-3 sm:px-6",
+                "flex min-w-0 rounded-3xl border text-center transition-colors",
+                "h-auto min-h-[4.75rem] flex-col items-center justify-center gap-1 px-2 py-2",
+                "xl:h-[66px] xl:min-h-0 xl:flex-row xl:items-center xl:justify-start xl:gap-3 xl:px-6 xl:py-0 xl:text-left",
                 active
                   ? "border-transparent bg-[#102b43] text-white"
                   : locked
@@ -55,10 +57,10 @@ export function ScreenNav({
                     : "border-border bg-card text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className="shrink-0 text-[11px] font-normal uppercase tracking-[0.12em] sm:text-[13px] sm:tracking-[0.14em]">
+              <span className="shrink-0 text-[10px] font-normal uppercase tracking-[0.12em] sm:text-[11px] xl:text-[13px] xl:tracking-[0.14em]">
                 Step {item.step}
               </span>
-              <span className="min-w-0 text-balance text-sm font-normal leading-tight tracking-tight sm:text-[19px]">
+              <span className="min-w-0 text-balance text-[13px] font-medium leading-[1.15] sm:text-sm xl:text-[19px] xl:font-normal">
                 {item.label}
               </span>
             </button>

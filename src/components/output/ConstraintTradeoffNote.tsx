@@ -34,7 +34,7 @@ export function ConstraintTradeoffNote({
       </p>
       <p className="text-sm leading-relaxed text-foreground sm:text-base">
         {lead} costs about{" "}
-        <span className="font-semibold tabular-nums text-amber-200">
+        <span className="font-semibold tabular-nums text-amber-800">
           ${cost}
         </span>{" "}
         a year versus keeping your current cards.

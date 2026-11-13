@@ -17,7 +17,11 @@ import {
 } from "@/lib/constants";
 import type { SavedCardValue, UserPreferences } from "@/types";
 
-export function StackOptimizerApp() {
+interface StackOptimizerAppProps {
+  registerGoHome: (goHome: () => void) => void;
+}
+
+export function StackOptimizerApp({ registerGoHome }: StackOptimizerAppProps) {
   const {
     cards,
     spending,
@@ -165,6 +169,15 @@ export function StackOptimizerApp() {
 
   const resultsReady = hasCalculated && resultsRevealed;
 
+  const goHome = useCallback(() => {
+    setFilterDialogOpen(false);
+    setScreen("landing");
+  }, []);
+
+  useLayoutEffect(() => {
+    registerGoHome(goHome);
+  }, [registerGoHome, goHome]);
+
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [screen]);
@@ -180,7 +193,7 @@ export function StackOptimizerApp() {
         />
       )}
 
-      <main className="px-4 py-6 sm:px-6 sm:py-14">
+      <main className={screen === "landing" ? "" : "px-4 py-6 sm:px-6 sm:py-14"}>
         {screen === "landing" && (
           <LandingScreen onContinue={() => setScreen("input")} />
         )}

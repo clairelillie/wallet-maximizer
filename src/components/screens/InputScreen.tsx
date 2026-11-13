@@ -4,14 +4,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { BenefitsInputs } from "@/components/inputs/BenefitsInputs";
 import { CreditCardList } from "@/components/inputs/CreditCardList";
-import { InputStepLayout } from "@/components/inputs/InputStepLayout";
 import { PreferencesStep } from "@/components/inputs/PreferencesStep";
 import { SpendingInputs } from "@/components/inputs/SpendingInputs";
 import { Button } from "@/components/ui/button";
-import {
-  stepActionButtonClassName,
-  stepActionsClassName,
-} from "@/components/ui/surfaces";
+import { stepActionButtonClassName } from "@/components/ui/surfaces";
 import type {
   MonthlySpending,
   UserCreditCard,
@@ -20,11 +16,39 @@ import type {
 
 type InputStep = "wallet" | "spend" | "benefits" | "preferences";
 
-const INPUT_STEPS: Array<{ id: InputStep; label: string }> = [
-  { id: "wallet", label: "Wallet" },
-  { id: "spend", label: "Spend" },
-  { id: "benefits", label: "Benefits" },
-  { id: "preferences", label: "Preferences" },
+const INPUT_STEPS: Array<{
+  id: InputStep;
+  label: string;
+  heading: string;
+  description: string;
+}> = [
+  {
+    id: "wallet",
+    label: "Wallet",
+    heading: "What cards do you already have?",
+    description:
+      "List the cards you already have. If a bank or card isn’t listed, enter it yourself, and mark any card you want to keep so recommendations work around it.",
+  },
+  {
+    id: "spend",
+    label: "Spend",
+    heading: "How much do you spend each month?",
+    description: "Add a rough monthly estimate for each spending category.",
+  },
+  {
+    id: "benefits",
+    label: "Benefits",
+    heading: "Which benefits do you care about?",
+    description:
+      "These questions cover perks that often come with an annual fee. Answer based on what you do now — the fee is what you pay for those benefits up front.",
+  },
+  {
+    id: "preferences",
+    label: "Preferences",
+    heading: "What limits should we follow?",
+    description:
+      "Set the limits for your recommendations, including how many cards you’ll manage and which rewards you’re open to.",
+  },
 ];
 
 interface InputScreenProps {
@@ -78,6 +102,7 @@ export function InputScreen({
   }, [step]);
 
   const stepIndex = INPUT_STEPS.findIndex((s) => s.id === step);
+  const currentStep = INPUT_STEPS[stepIndex];
 
   const setPreference = <K extends keyof UserPreferences>(
     key: K,
@@ -95,73 +120,71 @@ export function InputScreen({
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div className="grid grid-cols-2 gap-2 min-[380px]:grid-cols-4 min-[380px]:gap-1.5 sm:gap-3 lg:px-6">
-        {INPUT_STEPS.map((item, index) => {
-          const active = item.id === step;
-          const done = index < stepIndex;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setStep(item.id)}
-              className={`flex min-h-11 items-center justify-center rounded-xl px-2 py-2.5 text-center text-sm font-semibold leading-tight tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 ${
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : done
-                    ? "bg-white/10 text-foreground"
-                    : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
-              }`}
-            >
-              {item.label}
-            </button>
-          );
-        })}
+    <div className="mx-auto w-full max-w-[1368px]">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.7fr)] lg:gap-x-16">
+        <h2 className="text-[2.15rem] font-bold leading-[1.08] tracking-tight text-balance text-[#102b43] sm:text-[3.5rem] sm:leading-[1.15]">
+          {currentStep.heading}
+        </h2>
+        <p className="text-[17px] leading-relaxed text-[#506578] lg:pt-3">
+          {currentStep.description}
+        </p>
       </div>
 
-      <div className="min-h-[28rem]">
-        {step === "wallet" && (
-          <InputStepLayout
-            heading="What cards do you already have?"
-            description="List the cards you already have. If a bank or card isn’t listed, enter it yourself, and mark any card you want to keep so recommendations work around it."
-          >
+      <div className="mt-8 grid gap-6 lg:mt-14 lg:grid-cols-[236px_minmax(0,1fr)] lg:items-start lg:gap-x-[52px]">
+        <nav className="flex gap-2 overflow-x-auto lg:flex-col lg:gap-[26px] lg:overflow-visible">
+          {INPUT_STEPS.map((item) => {
+            const active = item.id === step;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setStep(item.id)}
+                className={`flex shrink-0 items-center rounded-xl border px-6 py-4 text-left text-lg font-bold tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:h-[60px] lg:w-full lg:py-0 ${
+                  active
+                    ? "border-[#a8bdc9] bg-[#e0f2e9] text-[#006b50]"
+                    : "border-transparent text-[#102b43] hover:bg-[#e0f2e9]/60"
+                }`}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="min-w-0">
+          {step === "wallet" && (
             <CreditCardList
               cards={cards}
               onAdd={onAddCard}
               onUpdate={onUpdateCard}
               onRemove={onRemoveCard}
             />
-          </InputStepLayout>
-        )}
+          )}
 
-        {step === "spend" && (
-          <InputStepLayout
-            heading="How much do you spend each month?"
-            description="Add a rough monthly estimate for each spending category."
-          >
+          {step === "spend" && (
             <SpendingInputs spending={spending} onChange={onSpendingChange} />
-          </InputStepLayout>
-        )}
+          )}
 
-        {step === "benefits" && (
-          <BenefitsInputs
-            behaviors={preferences.perkBehaviors}
-            onChange={(perkBehaviors) =>
-              setPreference("perkBehaviors", perkBehaviors)
-            }
-          />
-        )}
+          {step === "benefits" && (
+            <BenefitsInputs
+              behaviors={preferences.perkBehaviors}
+              onChange={(perkBehaviors) =>
+                setPreference("perkBehaviors", perkBehaviors)
+              }
+            />
+          )}
 
-        {step === "preferences" && (
-          <PreferencesStep
-            cards={cards}
-            preferences={preferences}
-            onChange={onPreferencesChange}
-          />
-        )}
+          {step === "preferences" && (
+            <PreferencesStep
+              cards={cards}
+              preferences={preferences}
+              onChange={onPreferencesChange}
+            />
+          )}
+        </div>
       </div>
 
-      <div className={stepActionsClassName}>
+      <div className="mt-8 flex flex-col-reverse gap-3 sm:mt-10 sm:flex-row sm:items-center sm:justify-between">
         <Button
           type="button"
           variant="ghost"
@@ -175,7 +198,7 @@ export function InputScreen({
         {step === "preferences" ? (
           <Button
             type="button"
-            className={`${stepActionButtonClassName} sm:ml-auto`}
+            className={stepActionButtonClassName}
             onClick={onCalculate}
           >
             See my recommendations
@@ -184,7 +207,7 @@ export function InputScreen({
         ) : (
           <Button
             type="button"
-            className={`${stepActionButtonClassName} sm:ml-auto`}
+            className={stepActionButtonClassName}
             onClick={goNext}
           >
             Continue

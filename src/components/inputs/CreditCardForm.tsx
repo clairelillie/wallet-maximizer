@@ -316,7 +316,7 @@ export function CreditCardForm({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+            className="size-11 shrink-0 rounded-xl bg-[#102b43] text-white hover:bg-[#102b43]/90 hover:text-white"
             onClick={onRemove}
             aria-label="Remove card"
           >

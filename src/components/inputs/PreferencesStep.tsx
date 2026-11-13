@@ -3,7 +3,7 @@
 import { Info } from "lucide-react";
 import { AnswerSelect, MultiAnswerSelect } from "@/components/inputs/AnswerSelect";
 import { FieldHelp } from "@/components/inputs/FieldHelp";
-import { InputStepLayout, inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
+import { inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
 import {
   ISSUER_ECOSYSTEM_OPTIONS,
   LOYALTY_PROGRAM_OPTIONS,
@@ -138,10 +138,6 @@ export function PreferencesStep({
     preferences.rewardTypePreference === "no_preference";
 
   return (
-    <InputStepLayout
-      heading="What limits should we follow?"
-      description="Set the limits for your recommendations, including how many cards you’ll manage and which rewards you’re open to."
-    >
       <div className="space-y-5">
       <div className={inputStepFormGroupClassName}>
         <h3 className={boxHeaderClass}>Logistics</h3>
@@ -189,7 +185,7 @@ export function PreferencesStep({
         />
         {mismatchedKeptCards.length > 0 &&
           isEcosystemFilterActive(preferences.preferredEcosystems) && (
-            <div className="flex gap-3 rounded-xl border border-amber-200/20 bg-amber-200/10 px-3 py-3 text-sm text-amber-50">
+            <div className="flex gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
               <Info className="mt-0.5 h-4 w-4 shrink-0" />
               <p className="text-sm leading-relaxed">
                 Keep cards outside{" "}
@@ -298,6 +294,5 @@ export function PreferencesStep({
       </div>
 
       </div>
-    </InputStepLayout>
   );
 }

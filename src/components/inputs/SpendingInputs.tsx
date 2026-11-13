@@ -145,15 +145,13 @@ function SpendTotal({ spending }: { spending: MonthlySpending }) {
   const amount = formatSpendTotal(monthlySpendCents(spending));
 
   return (
-    <div className={inputStepFormGroupClassName}>
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-lg font-semibold tracking-tight">
-          Monthly total
-        </span>
-        <span className="shrink-0 text-right font-mono text-xl font-semibold tabular-nums">
-          {amount}
-        </span>
-      </div>
+    <div className="flex items-center justify-between gap-3 rounded-[18px] bg-[#e0f2e9] px-6 py-5">
+      <span className="text-lg font-bold tracking-tight text-[#102b43]">
+        Monthly total
+      </span>
+      <span className="shrink-0 text-right font-sans text-3xl font-bold tabular-nums text-[#006b50]">
+        {amount}
+      </span>
     </div>
   );
 }

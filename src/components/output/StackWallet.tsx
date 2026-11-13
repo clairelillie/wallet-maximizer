@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Check, Plane } from "lucide-react";
+import { Check, ChevronDown, Plane } from "lucide-react";
 import { FieldHelp } from "@/components/inputs/FieldHelp";
 import {
   FreedomFlexEarnNote,
@@ -113,7 +113,7 @@ const ACTION_STYLES: Record<
 };
 
 const reviewBoxHeaderClass =
-  "min-w-0 text-lg font-bold tracking-tight break-words sm:text-xl";
+  "min-w-0 text-[1.7rem] font-bold tracking-tight break-words";
 
 function DetailSection({
   title,
@@ -268,28 +268,32 @@ function BenefitValueRow({
   );
 }
 
-/** Flat shell colors so the bifold sits on the ink canvas. */
-const WALLET_SHELL = "oklch(0.46 0.02 262)";
-const WALLET_LINING = "oklch(0.4 0.018 262)";
-const WALLET_HINGE = "oklch(0.54 0.024 262)";
-const WALLET_POCKET = "oklch(0.42 0.018 262)";
-const WALLET_EDGE = "oklch(1 0 0 / 0.32)";
-
-/** Visible name strip for each overlapping card (px). */
-const CARD_PEEK = 30;
-/** Full plastic card height (px). */
-const CARD_BODY = 92;
-/** Top padding inside each wallet panel, kept in sync with the panel layout. */
-const PANEL_TOP_PAD = 16;
-/** Clearance between a fully extracted card and the top edge of the wallet. */
-const CARD_PULL_GAP = 18;
-/** Room above the extracted card so it does not sit flush against content above. */
-const PULL_HEADROOM = 12;
-const CARD_MOTION =
-  "transform 380ms cubic-bezier(0.22, 1, 0.36, 1), filter 380ms ease";
-
 /** Space between the viewport edge and the opened card's name row. */
 const DETAILS_FOCUS_OFFSET = 16;
+
+const CARD_FACES = [
+  {
+    art: "/figma/cards/navy.svg",
+    chip: "/figma/cards/navy-chip.svg",
+    mark: "/figma/cards/navy-mark.svg",
+    pay: "/figma/cards/navy-pay.svg",
+    ink: "#ffffff",
+  },
+  {
+    art: "/figma/cards/mint.svg",
+    chip: "/figma/cards/mint-chip.svg",
+    mark: "/figma/cards/mint-mark.svg",
+    pay: "/figma/cards/mint-pay.svg",
+    ink: "#102b43",
+  },
+  {
+    art: "/figma/cards/emerald.svg",
+    chip: "/figma/cards/emerald-chip.svg",
+    mark: "/figma/cards/emerald-mark.svg",
+    pay: "/figma/cards/emerald-pay.svg",
+    ink: "#ffffff",
+  },
+] as const;
 
 /** Document top of a node, ignoring its own transform (entrance motion). */
 function layoutDocumentTop(node: HTMLElement): number {
@@ -302,10 +306,10 @@ function layoutDocumentTop(node: HTMLElement): number {
   return top;
 }
 
-/** After a save, frame the bifold in the middle of the screen. */
+/** After a save, frame the card row in the middle of the screen. */
 function scrollWalletIntoView() {
   const node = document.querySelector<HTMLElement>(
-    '[aria-label="Recommended cards in open bifold wallet"]'
+    '[aria-label="Recommended cards"]'
   );
   if (!node) return;
   const rect = node.getBoundingClientRect();
@@ -314,146 +318,7 @@ function scrollWalletIntoView() {
   window.scrollTo(0, Math.max(0, top));
 }
 
-/** Move a card from its slot to a resting place fully above the wallet. */
-function pullOutTranslate(slotTop: number): number {
-  return -(slotTop + CARD_BODY + PANEL_TOP_PAD + CARD_PULL_GAP);
-}
-
-function WalletPanel({
-  side,
-  cards,
-  selectedId,
-  savedByCardId,
-  onSelect,
-}: {
-  side: "left" | "right";
-  cards: StackCard[];
-  selectedId: string;
-  savedByCardId: Record<string, SavedCardValue>;
-  onSelect: (id: string) => void;
-}) {
-  const n = cards.length;
-  // Overlapping stack: each next card sits lower by CARD_PEEK so every name shows.
-  const stackHeight =
-    n === 0 ? 160 : CARD_PEEK * Math.max(n - 1, 0) + CARD_BODY + 28;
-  const panelHeight = Math.max(11, stackHeight / 16 + 1.5);
-
-  return (
-    <div
-      className={`relative flex-1 overflow-visible border border-border ${
-        side === "left" ? "rounded-l-md" : "rounded-r-md"
-      }`}
-      style={{
-        minHeight: `${panelHeight}rem`,
-        background: WALLET_SHELL,
-        boxShadow:
-          side === "left"
-            ? `inset -2px 0 0 ${WALLET_EDGE}`
-            : `inset 2px 0 0 ${WALLET_EDGE}`,
-      }}
-    >
-      {/* Inner lining */}
-      <div
-        className={`absolute inset-2 ${
-          side === "left" ? "rounded-l-sm" : "rounded-r-sm"
-        }`}
-        style={{
-          background: WALLET_LINING,
-          boxShadow: `inset 0 0 0 1px ${WALLET_EDGE}`,
-        }}
-      />
-
-      <div
-        className="relative z-10 h-full px-2.5 pb-3 sm:px-3"
-        style={{ paddingTop: PANEL_TOP_PAD }}
-      >
-        {n === 0 ? null : (
-          <div
-            className="relative mx-auto w-full"
-            style={{ height: stackHeight }}
-          >
-            {/* Flat pocket lip covering the lower bodies */}
-            <div
-              className="pointer-events-none absolute inset-x-0 bottom-0 z-[25]"
-              style={{
-                height: CARD_BODY - CARD_PEEK + 12,
-                background: WALLET_POCKET,
-                boxShadow: `inset 0 2px 0 ${WALLET_EDGE}`,
-              }}
-              aria-hidden
-            />
-
-            {cards.map((card, index) => {
-              const face = faceFor(card);
-              const isSelected = card.id === selectedId;
-              const isSaved = Boolean(savedByCardId[card.id]);
-              // Higher slot first; each next card sits one peek lower.
-              const top = index * CARD_PEEK;
-              return (
-                <button
-                  key={card.id}
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  aria-label={isSaved ? `${card.name}, saved` : card.name}
-                  onClick={() => onSelect(card.id)}
-                  className="absolute inset-x-1 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
-                  style={{
-                    top,
-                    height: CARD_BODY,
-                    // Later cards layer above earlier ones so only name strips show.
-                    // The selected card paints above the pocket while it exits.
-                    zIndex: isSelected ? 40 : 10 + index,
-                    transform: `translateY(${
-                      isSelected ? pullOutTranslate(top) : 0
-                    }px) scale(${isSelected ? 1.03 : 1})`,
-                    transformOrigin: isSelected ? "center bottom" : "center",
-                    transition: CARD_MOTION,
-                    filter: isSelected
-                      ? "drop-shadow(0 10px 16px rgb(0 0 0 / 0.45))"
-                      : "none",
-                  }}
-                >
-                  <span
-                    className="relative block h-full w-full overflow-hidden rounded-[2px] border border-white/15"
-                    style={{ background: face.face }}
-                  >
-                    <span
-                      className={`absolute inset-x-0 top-0 flex h-[30px] items-center gap-1.5 border-b px-2 ${
-                        isSaved
-                          ? "border-gain/50 bg-gain-soft"
-                          : "border-white/20 bg-black/25"
-                      }`}
-                    >
-                      <span className="min-w-0 flex-1 truncate whitespace-nowrap text-left font-sans text-[13px] font-bold tracking-tight text-foreground">
-                        {card.name}
-                      </span>
-                      {isSaved ? (
-                        <span className="flex size-4 shrink-0 items-center justify-center rounded-[2px] bg-gain text-background">
-                          <Check className="size-3" strokeWidth={3} />
-                        </span>
-                      ) : null}
-                    </span>
-                    <span
-                      className="absolute left-2 top-[2.55rem] h-2.5 w-4 border border-black/30"
-                      style={{ background: face.chip }}
-                    />
-                    <span
-                      className="absolute bottom-0 left-0 right-0 h-1"
-                      style={{ background: face.stripe }}
-                    />
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function BifoldWallet({
+function CardFan({
   stack,
   selectedId,
   savedByCardId,
@@ -464,48 +329,118 @@ function BifoldWallet({
   savedByCardId: Record<string, SavedCardValue>;
   onSelect: (id: string) => void;
 }) {
+  const savedCount = stack.filter((card) => savedByCardId[card.id]).length;
+
   return (
-    <div className="mx-auto w-full max-w-lg select-none">
-      {/* Lift room so the selected card can sit fully above the wallet */}
-      <div
-        className="relative"
-        style={{ paddingTop: CARD_BODY + CARD_PULL_GAP + PULL_HEADROOM }}
-      >
+    <div className="rounded-[18px] border border-border bg-card px-4 py-6 shadow-[2px_5px_7px_rgba(16,43,67,0.1)] sm:px-8 sm:py-8">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="text-base font-bold tracking-tight text-foreground">
+          {stack.length === 1
+            ? "Click the card to review it"
+            : "Click each card to review it"}
+        </p>
+        <p className="text-sm font-semibold text-muted-foreground">
+          {savedCount} of {stack.length} saved
+        </p>
+      </div>
+      <div className="overflow-x-auto">
         <div
-          className="relative flex overflow-visible rounded-md border border-border shadow-[0_20px_40px_-28px_rgba(0,0,0,0.9)]"
+          className="mx-auto flex w-max min-w-full items-start justify-center gap-4 px-3 py-8 sm:gap-8"
           role="listbox"
-          aria-label="Recommended cards in open bifold wallet"
-          style={{ background: WALLET_SHELL }}
+          aria-label="Recommended cards"
         >
-          {/* Left leaf — empty lining, no card slots */}
-          <WalletPanel
-            side="left"
-            cards={[]}
-            selectedId={selectedId}
-            savedByCardId={savedByCardId}
-            onSelect={onSelect}
-          />
-
-          {/* Center hinge / spine of the open bifold */}
-          <div
-            className="relative z-20 w-3 shrink-0 self-stretch sm:w-3.5"
-            aria-hidden
-            style={{
-              background: WALLET_HINGE,
-              boxShadow: `inset 1px 0 0 ${WALLET_EDGE}, inset -1px 0 0 ${WALLET_EDGE}`,
-            }}
-          >
-            <div className="absolute inset-y-3 left-1/2 w-px -translate-x-1/2 bg-white/20" />
-          </div>
-
-          {/* Right leaf — all cards in a vertical stack of slots */}
-          <WalletPanel
-            side="right"
-            cards={stack}
-            selectedId={selectedId}
-            savedByCardId={savedByCardId}
-            onSelect={onSelect}
-          />
+          {stack.map((card, index) => {
+            const face = CARD_FACES[index % CARD_FACES.length];
+            const tilt =
+              stack.length <= 1
+                ? 0
+                : -5 + (index / (stack.length - 1)) * 10;
+            const isSelected = card.id === selectedId;
+            const isSaved = Boolean(savedByCardId[card.id]);
+            const status = isSelected
+              ? "currently viewing"
+              : isSaved
+                ? "saved"
+                : "click to open";
+            return (
+              <div
+                key={card.id}
+                className="flex w-[300px] shrink-0 flex-col items-center"
+              >
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  aria-label={`${card.name}, ${status}`}
+                  onClick={() => onSelect(card.id)}
+                  className={`relative h-[189px] w-full touch-manipulation rounded-[18px] transition-[transform,filter,opacity] duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+                    isSelected
+                      ? "opacity-100"
+                      : "opacity-75 hover:opacity-100"
+                  }`}
+                  style={{
+                    transform: isSelected
+                      ? `translateY(-12px) rotate(${tilt * 0.25}deg) scale(1.04)`
+                      : `rotate(${tilt}deg)`,
+                    zIndex: isSelected ? 20 : 10 + index,
+                    filter: isSelected
+                      ? "drop-shadow(0 18px 16px rgba(16,43,67,0.24))"
+                      : "drop-shadow(0 10px 9px rgba(16,43,67,0.15))",
+                    outline: isSelected ? "3px solid #102b43" : undefined,
+                    outlineOffset: isSelected ? "4px" : undefined,
+                  }}
+                >
+                  <img
+                    src={face.art}
+                    alt=""
+                    className="pointer-events-none absolute inset-0 size-full"
+                  />
+                  <img
+                    src={face.chip}
+                    alt=""
+                    className="pointer-events-none absolute top-[26px] left-6 h-[27px] w-[36px]"
+                  />
+                  <img
+                    src={face.mark}
+                    alt=""
+                    className="pointer-events-none absolute top-[27px] left-[71px] h-6 w-[13px]"
+                  />
+                  <img
+                    src={face.pay}
+                    alt=""
+                    className="pointer-events-none absolute top-6 right-5 h-[23px] w-[37px]"
+                  />
+                  <span
+                    className="absolute top-[104px] left-6 w-[252px] text-left text-base font-bold leading-[1.4] tracking-tight"
+                    style={{ color: face.ink }}
+                  >
+                    {card.name}
+                  </span>
+                  {isSaved ? (
+                    <span className="absolute top-6 right-16 flex size-5 items-center justify-center rounded-full bg-white text-primary">
+                      <Check className="size-3" strokeWidth={3} />
+                    </span>
+                  ) : null}
+                </button>
+                <p className="mt-4 flex h-7 items-center" aria-hidden>
+                  {isSelected ? (
+                    <span className="inline-flex h-7 items-center gap-1 rounded-full bg-[#102b43] px-3 text-xs font-bold tracking-wide text-white">
+                      Viewing
+                      <ChevronDown className="size-3.5" strokeWidth={2.5} />
+                    </span>
+                  ) : isSaved ? (
+                    <span className="text-xs font-bold tracking-wide text-brand">
+                      Saved
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold tracking-wide text-foreground">
+                      Click to open
+                    </span>
+                  )}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -526,6 +461,7 @@ export function StackWallet({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const detailsRef = useRef<HTMLDivElement>(null);
   const scrollAfterSaveRef = useRef(false);
+  const userSelectedRef = useRef(false);
   const [loungeTipOpen, setLoungeTipOpen] = useState(false);
   const [loungeTipVersion, setLoungeTipVersion] = useState(0);
   const loungeTipBenefitIdRef = useRef<string | null>(null);
@@ -542,7 +478,12 @@ export function StackWallet({
   }
 
   useEffect(() => {
-    setSelectedId(null);
+    const ids =
+      typeof selectionKey === "string" ? selectionKey.split("\0") : [];
+    setSelectedId((current) => {
+      if (current && ids.includes(current)) return current;
+      return ids[0] && ids[0] !== "primary" ? ids[0] : null;
+    });
     setKeepAlerts([]);
   }, [selectionKey]);
 
@@ -613,7 +554,7 @@ export function StackWallet({
   const openCardId = selected?.id ?? null;
 
   useLayoutEffect(() => {
-    if (!openCardId) return;
+    if (!openCardId || !userSelectedRef.current) return;
     const node = detailsRef.current;
     if (!node) return;
     // Align the details to the start of the viewport, inset slightly so the
@@ -638,6 +579,9 @@ export function StackWallet({
   const loungeTipDismissedIds = loungeTipDismissedRef.current;
   void loungeTipVersion;
   const isSelectedSaved = selected ? Boolean(savedByCardId[selected.id]) : false;
+  const selectedIndex = selected
+    ? stack.findIndex((card) => card.id === selected.id)
+    : -1;
 
   if (stack.length === 0) return null;
 
@@ -694,11 +638,14 @@ export function StackWallet({
 
   return (
     <section className="space-y-16">
-      <BifoldWallet
+      <CardFan
         stack={stack}
         selectedId={selected?.id ?? ""}
         savedByCardId={savedByCardId}
-        onSelect={setSelectedId}
+        onSelect={(id) => {
+          userSelectedRef.current = true;
+          setSelectedId(id);
+        }}
       />
 
       {selected && (
@@ -707,16 +654,22 @@ export function StackWallet({
           ref={detailsRef}
           className="animate-in fade-in slide-in-from-bottom-2 space-y-3 duration-300"
         >
-          <div className="flex flex-wrap items-baseline justify-between gap-2 px-0.5">
-            <h4
-              className="border-b-[3px] pb-1 text-xl font-semibold tracking-tight"
-              style={{ borderBottomColor: selectedFace.stripe }}
-            >
-              {selected.name}
-            </h4>
+          <div className="flex flex-wrap items-end justify-between gap-2 px-0.5">
+            <div className="min-w-0">
+              <p className="text-sm font-bold tracking-wide text-brand">
+                Now viewing
+                <span className="font-semibold text-muted-foreground">
+                  {" "}
+                  · {selectedIndex + 1} of {stack.length}
+                </span>
+              </p>
+              <h4 className="mt-1 text-[2rem] font-bold tracking-tight text-foreground">
+                {selected.name}
+              </h4>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               {actionStyle.label === "ADD" ? (
-                <span className="inline-flex h-7 items-center rounded-md bg-gain px-2.5 font-sans text-xs font-semibold leading-none tracking-wide text-background">
+                <span className="inline-flex h-8 items-center rounded-[9px] bg-gain-soft px-3 font-sans text-xs font-bold leading-none tracking-wide text-primary">
                   ADD
                 </span>
               ) : (

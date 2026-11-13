@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { AnswerSelect } from "@/components/inputs/AnswerSelect";
 import { FieldHelp } from "@/components/inputs/FieldHelp";
-import { InputStepLayout, inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
+import { inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
 import {
   HOTEL_NIGHTS_OPTIONS,
   LOUNGE_VISIT_OPTIONS,
@@ -73,10 +73,6 @@ export function BenefitsInputs({
   ) => onChange({ ...behaviors, [key]: value });
 
   return (
-    <InputStepLayout
-      heading="Which benefits do you care about?"
-      description="These questions cover perks that often come with an annual fee. Answer based on what you do now — the fee is what you pay for those benefits up front."
-    >
       <div className="space-y-5">
       <div className={inputStepFormGroupClassName}>
         <h3 className={boxHeaderClass}>Travel</h3>
@@ -166,6 +162,5 @@ export function BenefitsInputs({
       </div>
 
       </div>
-    </InputStepLayout>
   );
 }

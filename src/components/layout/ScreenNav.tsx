@@ -30,9 +30,8 @@ export function ScreenNav({
   compareReady,
 }: ScreenNavProps) {
   return (
-    <nav className="border-b border-border/80 bg-background/60 backdrop-blur-sm">
-      <div className="px-4 sm:px-6">
-      <div className="mx-auto grid w-full max-w-3xl grid-cols-3">
+    <nav className="px-4 pt-6 sm:px-8 lg:px-[4.5rem]">
+      <div className="mx-auto grid w-full max-w-[1368px] grid-cols-3 gap-3 sm:gap-6">
         {SCREENS.map((item) => {
           const locked =
             item.id === "compare"
@@ -48,27 +47,23 @@ export function ScreenNav({
               disabled={locked}
               onClick={() => onChange(item.id)}
               className={cn(
-                "relative flex flex-col items-center justify-start gap-1 px-1 pb-3 pt-2.5 text-center transition-colors sm:px-2 sm:py-3",
+                "flex h-[66px] min-w-0 items-center gap-2 rounded-3xl border px-3 text-left transition-colors sm:gap-3 sm:px-6",
                 active
-                  ? "text-foreground"
+                  ? "border-transparent bg-[#102b43] text-white"
                   : locked
-                    ? "cursor-not-allowed text-muted-foreground/40"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "cursor-not-allowed border-border bg-card text-muted-foreground/45"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className="text-[10px] font-medium uppercase tracking-[0.12em] sm:text-[11px] sm:tracking-[0.14em]">
+              <span className="shrink-0 text-[11px] font-normal uppercase tracking-[0.12em] sm:text-[13px] sm:tracking-[0.14em]">
                 Step {item.step}
               </span>
-              <span className="flex h-9 items-start justify-center text-balance text-[13px] font-semibold leading-tight tracking-tight sm:h-6 sm:items-center sm:text-base">
+              <span className="min-w-0 text-balance text-sm font-normal leading-tight tracking-tight sm:text-[19px]">
                 {item.label}
               </span>
-              {active && (
-                <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-primary sm:inset-x-8" />
-              )}
             </button>
           );
         })}
-      </div>
       </div>
     </nav>
   );

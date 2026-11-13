@@ -62,7 +62,7 @@ export function CreditCardList({
           <Button
             type="button"
             variant="outline"
-            className={fullWidthActionClassName}
+            className={`${fullWidthActionClassName} border-transparent bg-[#e7f6ef] text-[#102b43] hover:bg-[#d7f0e4]`}
             onClick={onAdd}
           >
             <Plus className="mr-2 size-5" />

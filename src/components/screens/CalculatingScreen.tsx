@@ -65,18 +65,18 @@ export function CalculatingScreen({ onSeeResults }: CalculatingScreenProps) {
           </div>
         </div>
       ) : (
-        <div className="w-full space-y-8">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gain-soft text-gain">
-            <Check className="h-8 w-8" strokeWidth={2.5} />
+        <div className="w-full max-w-xl space-y-8 rounded-[18px] border border-border bg-card px-8 py-12 text-center shadow-[2px_5px_7px_rgba(16,43,67,0.08)]">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#e0f2e9] text-[#006b50]">
+            <Check className="h-7 w-7" strokeWidth={2.5} />
           </div>
           <div className="space-y-3 text-center">
-            <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
+            <p className="text-center text-[11px] font-bold uppercase tracking-[0.18em] text-[#006b50]">
               Done
             </p>
-            <h2 className="text-center text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h2 className="text-center text-3xl font-bold tracking-tight text-[#102b43] sm:text-4xl">
               Your stack is ready
             </h2>
-            <p className="text-center text-base leading-relaxed text-muted-foreground">
+            <p className="text-center text-base leading-relaxed text-[#506578]">
               Review each card, then compare it with the wallet you have now.
             </p>
           </div>

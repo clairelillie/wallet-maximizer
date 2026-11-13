@@ -7,21 +7,22 @@ export function AboutScreen() {
   return (
     <>
       <main className="px-4 py-6 sm:px-6 sm:py-14">
-        <div className="mx-auto max-w-3xl space-y-8">
+        <div className="mx-auto max-w-[1080px] space-y-8">
           <header className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#006b50]">
               About
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-[#102b43] sm:text-5xl">
               A planning tool for a wallet you can keep.
             </h1>
           </header>
 
-          <section className="rounded-2xl border border-border bg-card px-5 py-6 sm:px-8 sm:py-10">
-            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
+          <section className="rounded-[18px] border border-border bg-card px-5 py-6 shadow-[2px_5px_7px_rgba(16,43,67,0.08)] sm:px-8 sm:py-10">
+            <div className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-10">
+            <h2 className="text-2xl font-bold tracking-tight text-[#102b43]">
               Our mission
             </h2>
-            <div className="mt-5 space-y-4 text-base leading-relaxed text-muted-foreground">
+            <div className="space-y-4 text-base leading-relaxed text-[#506578]">
               <p>
                 Wallet Maximizer exists to make confusing credit card decisions
                 simple, based on how you already spend.
@@ -41,18 +42,20 @@ export function AboutScreen() {
                 rules you can remember, and fees that earn their place.
               </p>
             </div>
+            </div>
           </section>
 
           <CatalogBrowser />
 
-          <section className="rounded-2xl border border-amber-200/20 bg-amber-200/10 px-5 py-5 sm:px-6 sm:py-6">
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)]">
+          <section className="rounded-[18px] border border-amber-200 bg-[#f8efd4] px-5 py-5 sm:px-6 sm:py-6">
             <div className="flex gap-3">
-              <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-200" />
+              <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
               <div className="min-w-0 space-y-3">
-                <h2 className="text-base font-semibold tracking-tight text-amber-50">
+                <h2 className="text-base font-semibold tracking-tight text-amber-950">
                   Check every suggestion yourself
                 </h2>
-                <div className="space-y-3 text-sm leading-relaxed text-amber-50/90">
+                <div className="space-y-3 text-sm leading-relaxed text-amber-950/90">
                   <p>
                     Wallet Maximizer is a planning aid. It is not financial,
                     tax, or credit advice, and it is not an offer from any card
@@ -72,7 +75,7 @@ export function AboutScreen() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card px-5 py-6 sm:px-8 sm:py-8">
+          <section className="rounded-[18px] border border-border bg-card px-5 py-6 shadow-[2px_5px_7px_rgba(16,43,67,0.08)] sm:px-8 sm:py-8">
             <div className="flex gap-3">
               <Mail className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
               <div className="min-w-0 space-y-3">
@@ -92,6 +95,7 @@ export function AboutScreen() {
               </div>
             </div>
           </section>
+          </div>
 
           <p className="text-center">
             <Link

@@ -86,10 +86,12 @@ export function StackResultScreen({
     : `Your recommended ${view.stack.length}-card stack`;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10">
+    <div className="mx-auto w-full max-w-[1080px] space-y-10">
       <InputStepLayout
         heading={heading}
-        description="Open each card, set what its benefits are worth to you, and save it. When every card is saved, compare this stack with your current wallet."
+        headingClassName="mx-auto max-w-none text-center text-[2.35rem] font-bold leading-[1.15] tracking-tight text-balance text-[#102b43] sm:text-5xl"
+        descriptionClassName="mx-auto mt-4 max-w-3xl text-center text-lg leading-7 text-[#506578]"
+        description="Click through each card. Set what its benefits are worth to you, then save it. Once every card is saved, compare this stack with your current wallet."
       >
         <StackWallet
           stack={view.stack}

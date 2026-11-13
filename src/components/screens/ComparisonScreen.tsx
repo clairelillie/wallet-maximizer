@@ -10,10 +10,7 @@ import {
 } from "@/components/output/FreedomFlexEarnNote";
 import { inputStepFormGroupClassName } from "@/components/inputs/InputStepLayout";
 import { Button } from "@/components/ui/button";
-import {
-  stepActionButtonClassName,
-  stepActionsClassName,
-} from "@/components/ui/surfaces";
+import { stepActionButtonClassName } from "@/components/ui/surfaces";
 import { SUPPORT_EMAIL } from "@/lib/site";
 import { formatSignedMoney } from "@/lib/card-value";
 import {
@@ -66,10 +63,10 @@ let updatedDazzlePlayed = false;
 const DAZZLE_MS = 1000;
 
 const sectionTitleClass =
-  "min-w-0 text-lg font-bold tracking-tight break-words sm:text-xl";
+  "text-[1.7rem] font-bold leading-9 tracking-[-0.5px] text-[#102b43]";
 
 const earnColumnsClass =
-  "grid grid-cols-2 gap-x-3 gap-y-1 [&>span]:min-w-0 [&>span]:break-words sm:grid-cols-[minmax(0,1.05fr)_minmax(0,1.25fr)_auto_auto_minmax(7.5rem,auto)] sm:items-baseline sm:gap-x-6 sm:gap-y-2";
+  "grid grid-cols-[minmax(7rem,1.15fr)_minmax(9rem,1.8fr)_8.75rem_7rem_10rem] items-center gap-x-4";
 
 function benefitKey(cardName: string, label: string, valuedBy: string): string {
   return `${cardName.toLowerCase()}::${valuedBy}::${label.toLowerCase()}`;
@@ -231,21 +228,6 @@ function UpdatedReveal({ active }: { active: boolean }) {
   );
 }
 
-/** Full-row mint band. Parent must not be a grid, or this layer can collapse to one cell. */
-const improvedRowPadClass = "px-4 py-4";
-
-function ImprovedWash({ settle }: { settle: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "pointer-events-none absolute inset-0 -z-10 rounded-xl border border-gain/70 bg-gain-soft",
-        settle && "compare-highlight-settle"
-      )}
-    />
-  );
-}
-
 function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -264,32 +246,30 @@ function CardValueOverview({
   return (
     <section className={inputStepFormGroupClassName}>
       <h3 className={sectionTitleClass}>Card value</h3>
-      <ul className="mt-5 space-y-2 text-base font-medium">
-        <li className="flex justify-between gap-3">
-          <span className="text-muted-foreground">Rewards</span>
-          <span className="font-mono tabular-nums text-gain">
+      <ul className="mt-6 space-y-4 text-[17px]">
+        <li className="flex items-baseline justify-between gap-3">
+          <span className="text-[#506578]">Rewards</span>
+          <span className="text-lg font-bold tabular-nums text-[#006b50]">
             ${rewards.toLocaleString()}
           </span>
         </li>
-        <li className="flex justify-between gap-3">
-          <span className="text-muted-foreground">Benefits</span>
-          <span className="font-mono tabular-nums text-gain">
+        <li className="flex items-baseline justify-between gap-3">
+          <span className="text-[#506578]">Benefits</span>
+          <span className="text-lg font-bold tabular-nums text-[#006b50]">
             ${benefits.toLocaleString()}
           </span>
         </li>
-        <li className="flex justify-between gap-3">
-          <span className="text-muted-foreground">Annual fee</span>
-          <span className="font-mono tabular-nums">
-            −${annualFee.toLocaleString()}
+        <li className="flex items-baseline justify-between gap-3">
+          <span className="text-[#506578]">Annual fee</span>
+          <span className="text-lg font-bold tabular-nums text-[#102b43]">
+            {annualFee > 0 ? `−$${annualFee.toLocaleString()}` : "$0"}
           </span>
         </li>
-        <li className="flex items-baseline justify-between gap-3 border-t border-border/50 pt-2.5">
-          <span className="font-medium">Net / year</span>
+        <li className="flex items-baseline justify-between gap-3 pt-3">
+          <span className="text-[22px] font-bold text-[#102b43]">Net / year</span>
           <span
-            className={`font-mono text-xl font-semibold tabular-nums ${
-              netValue >= 0
-                ? "text-gain"
-                : "text-amber-700 dark:text-amber-400"
+            className={`text-[2rem] font-bold leading-none tabular-nums ${
+              netValue >= 0 ? "text-[#006b50]" : "text-amber-800"
             }`}
           >
             {formatSignedMoney(netValue)}
@@ -411,34 +391,32 @@ export function ComparisonScreen({
     rewardTypePreference
   );
 
-  const currentNet = Math.round(result.currentNetPosition);
   const recommendedNet = Math.round(
     savedCards.reduce((sum, card) => sum + card.netDollars, 0)
   );
-  const netGain = recommendedNet - currentNet;
-  const gainDollars = `$${Math.abs(netGain).toLocaleString()}`;
+  const gainDollars = `$${Math.abs(recommendedNet).toLocaleString()}`;
   const heading =
     view === "current" ? "What you currently earn" : "Updated recommendations";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10">
-      <div className="space-y-3">
+    <div className="mx-auto w-full max-w-[1080px] space-y-9">
+      <div className="space-y-10">
         <div className={cn("relative", dazzling && "compare-dazzle-glow rounded-2xl")}>
           <UpdatedReveal active={dazzling} />
-          <h2 className="relative text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h2 className="relative text-center text-[2.15rem] font-bold leading-[1.1] tracking-[-0.75px] text-[#102b43] sm:text-[3.5rem] sm:leading-[1.2]">
             {heading}
           </h2>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-6 sm:grid-cols-2">
           <button
             type="button"
             aria-pressed={view === "current"}
             onClick={() => selectView("current")}
-            className={`rounded-xl border px-4 py-3 text-sm font-semibold sm:text-base ${
+            className={`h-[66px] rounded-xl border border-[#a8bdc9] px-4 text-lg ${
               view === "current"
-                ? "border-primary/40 bg-brand-soft text-foreground"
-                : "border-border bg-card text-muted-foreground hover:text-foreground"
+                ? "bg-[#e0f2e9] font-bold text-[#006b50]"
+                : "bg-white font-normal text-[#506578] hover:text-[#102b43]"
             }`}
           >
             What you currently earn
@@ -447,10 +425,10 @@ export function ComparisonScreen({
             type="button"
             aria-pressed={view === "updated"}
             onClick={() => selectView("updated")}
-            className={`rounded-xl border px-4 py-3 text-sm font-semibold sm:text-base ${
+            className={`h-[66px] rounded-xl border border-[#a8bdc9] px-4 text-lg ${
               view === "updated"
-                ? "border-primary/40 bg-brand-soft text-foreground"
-                : "border-border bg-card text-muted-foreground hover:text-foreground"
+                ? "bg-[#e0f2e9] font-bold text-[#006b50]"
+                : "bg-white font-normal text-[#506578] hover:text-[#102b43]"
             }`}
           >
             Updated recommendations
@@ -458,7 +436,7 @@ export function ComparisonScreen({
         </div>
       </div>
 
-      <div className="space-y-10" data-compare-dazzle={dazzling ? "on" : "off"}>
+      <div className="space-y-6" data-compare-dazzle={dazzling ? "on" : "off"}>
       <section
         className={cn(
           inputStepFormGroupClassName,
@@ -469,23 +447,22 @@ export function ComparisonScreen({
         <UpdatedReveal active={dazzling} />
         <h3 className={sectionTitleClass}>Annual earnings</h3>
         {earnLines.length === 0 ? (
-          <p className="mt-5 text-base font-medium text-muted-foreground">
+          <p className="mt-6 text-[17px] leading-7 text-[#506578]">
             {earningsEmptyCopy(view, result)}
           </p>
         ) : (
-          <div className="mt-5">
+          <div className="mt-6 overflow-x-auto">
+            <div className="min-w-[40rem]">
             <div
-              className={`${earnColumnsClass} border-b border-border/50 pb-3 text-base font-semibold text-muted-foreground`}
+              className={`${earnColumnsClass} h-[52px] rounded-[9px] bg-[#edf4f8] px-4 text-[15px] font-bold text-[#506578]`}
             >
               <span>Spending category</span>
               <span>Card name</span>
-              <span className="sm:text-right">Annual spend</span>
-              <span className="sm:text-right">Earning rate</span>
-              <span className="col-span-2 text-right sm:col-span-1">
-                Annual earnings
-              </span>
+              <span className="text-right">Annual spend</span>
+              <span className="text-center">Earning rate</span>
+              <span className="text-right">Annual earnings</span>
             </div>
-            <ul>
+            <ul className="mt-4 space-y-2">
               {earnLines.map((earnRow) => {
                 const earn = formatCategoryEarn(earnRow, rewardTypePreference);
                 const improved =
@@ -499,31 +476,20 @@ export function ComparisonScreen({
                   <li
                     key={earnRow.category}
                     data-improved={improved ? "true" : undefined}
-                    className={cn("relative z-0", improved && "my-1")}
                   >
-                    {improved ? <ImprovedWash settle={dazzling} /> : null}
                     <div
                       className={cn(
                         earnColumnsClass,
-                        "relative z-10",
-                        improved ? improvedRowPadClass : "py-2.5"
+                        "h-14 rounded-[9px] px-4 text-base text-[#102b43]",
+                        view === "updated" && "bg-[#e0f2e9]"
                       )}
                     >
-                      <span className="min-w-0 break-words text-base font-medium">
-                        {earnRow.label}
-                      </span>
-                      <span className="min-w-0 break-words text-base font-medium">
-                        {earnRow.cardName}
-                      </span>
-                      <span className="text-base font-medium tabular-nums sm:text-right">
+                      <span className="min-w-0 truncate">{earnRow.label}</span>
+                      <span className="min-w-0 truncate">{earnRow.cardName}</span>
+                      <span className="text-right tabular-nums">
                         ${earnRow.annualSpend.toLocaleString()}
                       </span>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 text-base font-medium tabular-nums sm:justify-end",
-                          improved && "text-gain"
-                        )}
-                      >
+                      <span className="inline-flex w-full items-center justify-center gap-1.5 tabular-nums">
                         <span>{earnRow.multiplier}x</span>
                         {showRotatingNote ? (
                           <FreedomFlexEarnNote
@@ -531,12 +497,10 @@ export function ComparisonScreen({
                           />
                         ) : null}
                       </span>
-                      <span className="col-span-2 min-w-0 text-right text-base font-medium tabular-nums sm:col-span-1">
-                        <span className={cn("block", improved && "text-gain")}>
-                          {earn.primary}
-                        </span>
+                      <span className="text-right font-bold tabular-nums text-[#006b50]">
+                        <span className="block">{earn.primary}</span>
                         {earn.secondary ? (
-                          <span className="block text-muted-foreground">
+                          <span className="block text-xs font-medium text-[#506578]">
                             {earn.secondary}
                           </span>
                         ) : null}
@@ -546,16 +510,19 @@ export function ComparisonScreen({
                 );
               })}
             </ul>
-            <div className="flex items-baseline justify-between gap-4 border-t border-border/50 pt-3 text-base font-medium">
-              <span>Annual earnings total</span>
-              <span className="text-right tabular-nums">
+            <div className="mt-8 flex items-baseline justify-between gap-4">
+              <span className="text-lg font-bold text-[#102b43]">
+                Annual earnings total
+              </span>
+              <span className="text-right text-[2rem] font-bold leading-none tabular-nums text-[#006b50]">
                 <span className="block">{earningsDisplay.primary}</span>
                 {earningsDisplay.secondary ? (
-                  <span className="block text-muted-foreground">
+                  <span className="mt-1 block text-sm font-medium text-[#506578]">
                     {earningsDisplay.secondary}
                   </span>
                 ) : null}
               </span>
+            </div>
             </div>
           </div>
         )}
@@ -571,13 +538,13 @@ export function ComparisonScreen({
         <UpdatedReveal active={dazzling} />
         <h3 className={sectionTitleClass}>Benefits</h3>
         {benefits.length === 0 ? (
-          <p className="mt-5 text-base font-medium text-muted-foreground">
+          <p className="mt-6 text-[17px] leading-7 text-[#506578]">
             {view === "current"
               ? "No dollar benefits counted on your current wallet."
               : "No dollar benefits counted on the recommended stack."}
           </p>
         ) : (
-          <ul className="mt-5 space-y-4">
+          <ul className="mt-6 space-y-4">
             {benefits.map((row) => {
               const description = benefitDescription(
                 row.cardName,
@@ -589,50 +556,34 @@ export function ComparisonScreen({
               <li
                 key={row.key}
                 data-improved={isNew ? "true" : undefined}
-                className="relative z-0"
+                className={cn(
+                  "flex items-baseline justify-between gap-4",
+                  isNew && "rounded-[9px] bg-[#e0f2e9] px-4 py-3"
+                )}
               >
-                {isNew ? <ImprovedWash settle={dazzling} /> : null}
-                <div
-                  className={cn(
-                    "relative z-10 flex items-baseline justify-between gap-4 text-base font-medium",
-                    isNew && improvedRowPadClass
-                  )}
-                >
-                  <div className="min-w-0">
-                    <p>
-                      {row.label}
-                      {description ? (
-                        <span className="ml-1.5 inline-flex align-middle">
-                          <FieldHelp
-                            id={`compare-benefit-${row.key.replace(/[^A-Za-z0-9_-]+/g, "-")}`}
-                            title={row.label}
-                            icon="exclamation"
-                          >
-                            {description}
-                          </FieldHelp>
-                        </span>
-                      ) : null}
-                    </p>
-                    <p className="text-muted-foreground">{row.cardName}</p>
-                  </div>
-                  <span
-                    className={cn(
-                      "shrink-0 font-mono tabular-nums",
-                      isNew && "text-gain"
-                    )}
-                  >
-                    ${row.value.toLocaleString()}/yr
-                  </span>
+                <div className="min-w-0">
+                  <p className="text-[17px] text-[#102b43]">
+                    {row.label}
+                    {description ? (
+                      <span className="ml-1.5 inline-flex align-middle">
+                        <FieldHelp
+                          id={`compare-benefit-${row.key.replace(/[^A-Za-z0-9_-]+/g, "-")}`}
+                          title={row.label}
+                          icon="exclamation"
+                        >
+                          {description}
+                        </FieldHelp>
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="text-[15px] text-[#506578]">{row.cardName}</p>
                 </div>
+                <span className="shrink-0 text-lg font-bold tabular-nums text-[#006b50]">
+                  ${row.value.toLocaleString()}
+                </span>
               </li>
               );
             })}
-            <li className="flex items-baseline justify-between gap-4 border-t border-border/50 pt-4 text-base font-medium">
-              <span>Benefits total</span>
-              <span className="font-mono tabular-nums">
-                ${benefitsTotal.toLocaleString()}/yr
-              </span>
-            </li>
           </ul>
         )}
       </section>
@@ -645,41 +596,39 @@ export function ComparisonScreen({
       </div>
 
       {view === "updated" ? (
-        <div className="space-y-5">
+        <div className="space-y-6">
           <section
-            className={`rounded-2xl border px-6 py-7 text-center sm:px-8 sm:py-8 ${
-              netGain > 0
-                ? "border-gain/30 bg-gain-soft/50"
-                : netGain < 0
-                  ? "border-amber-200/20 bg-amber-200/10"
-                  : "border-border bg-muted/40"
+            className={`rounded-[18px] border px-8 py-8 text-center shadow-[2px_5px_7px_rgba(16,43,67,0.1)] ${
+              recommendedNet >= 0
+                ? "border-[#a8bdc9] bg-[#e0f2e9]"
+                : "border-amber-200 bg-[#f8efd4]"
             }`}
           >
             <p
-              className={`text-xs font-semibold uppercase tracking-[0.16em] ${
-                netGain > 0 ? "text-gain" : "text-muted-foreground"
+              className={`text-[13px] font-bold uppercase tracking-[0.15em] ${
+                recommendedNet >= 0 ? "text-[#006b50]" : "text-amber-800"
               }`}
             >
               Versus your current wallet
             </p>
             <p
-              className={`mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl ${
-                netGain > 0 ? "text-gain" : "text-foreground"
+              className={`mt-3 text-balance text-[3rem] font-bold leading-none tracking-[-0.9px] ${
+                recommendedNet >= 0 ? "text-[#006b50]" : "text-[#102b43]"
               }`}
             >
-              {gainDollars} {netGain >= 0 ? "more" : "less"} a year
+              {gainDollars} {recommendedNet >= 0 ? "more" : "less"} a year
             </p>
-            <p className="mt-2 text-sm text-muted-foreground sm:text-base">
+            <p className="mt-4 text-lg text-[#102b43]">
               Estimated net value of the recommended stack
             </p>
           </section>
-          <p className="text-sm leading-relaxed text-muted-foreground">
+          <p className="text-[15px] leading-6 text-[#506578]">
             These figures are estimates from your answers. Confirm rates,
             credits, and fees with the issuer before you apply, keep, or cancel
             a card. Questions or a correction?{" "}
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
-              className="break-words font-medium text-foreground underline-offset-4 hover:underline"
+              className="break-words text-[#506578] underline-offset-4 hover:underline"
             >
               {SUPPORT_EMAIL}
             </a>
@@ -687,7 +636,7 @@ export function ComparisonScreen({
         </div>
       ) : null}
 
-      <div className={stepActionsClassName}>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button
           type="button"
           variant="ghost"
@@ -699,8 +648,7 @@ export function ComparisonScreen({
         </Button>
         <Button
           type="button"
-          variant="ghost"
-          className={`${stepActionButtonClassName} sm:ml-auto`}
+          className="h-[66px] w-full rounded-[13px] px-6 text-lg font-bold sm:w-[240px]"
           onClick={onEditInputs}
         >
           Edit inputs

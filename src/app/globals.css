@@ -53,32 +53,32 @@
 }
 
 /*
-  Quiet ink canvas with a restrained indigo accent.
-  Cards lift off the background; nothing glows.
+  Light canvas from the Figma wallet screen.
+  Ink is navy, actions are green, cards sit on white.
 */
 :root {
-  --background: oklch(0.34 0.02 262);
-  --foreground: oklch(0.985 0.004 262);
-  --card: oklch(0.43 0.022 262);
-  --card-foreground: oklch(0.985 0.004 262);
-  --popover: oklch(0.47 0.022 262);
-  --popover-foreground: oklch(0.985 0.004 262);
-  --primary: oklch(0.62 0.14 272);
-  --primary-foreground: oklch(0.99 0.004 270);
-  --secondary: oklch(0.5 0.022 262);
-  --secondary-foreground: oklch(0.985 0.004 262);
-  --muted: oklch(0.48 0.02 262);
-  --muted-foreground: oklch(0.88 0.01 262);
-  --accent: oklch(0.5 0.045 272);
-  --accent-foreground: oklch(0.985 0.008 272);
-  --destructive: oklch(0.68 0.16 25);
-  --border: oklch(1 0 0 / 24%);
-  --input: oklch(1 0 0 / 28%);
-  --ring: oklch(0.62 0.14 272);
-  --gain: oklch(0.84 0.12 165);
-  --gain-soft: oklch(0.46 0.06 165);
-  --brand: oklch(0.84 0.1 272);
-  --brand-soft: oklch(0.5 0.05 272);
+  --background: #f3f7fa;
+  --foreground: #102b43;
+  --card: #ffffff;
+  --card-foreground: #102b43;
+  --popover: #ffffff;
+  --popover-foreground: #102b43;
+  --primary: #006b50;
+  --primary-foreground: #ffffff;
+  --secondary: #e7eef3;
+  --secondary-foreground: #102b43;
+  --muted: #e7eef3;
+  --muted-foreground: #506578;
+  --accent: #e0f2e9;
+  --accent-foreground: #006b50;
+  --destructive: oklch(0.55 0.18 25);
+  --border: #a8bdc9;
+  --input: #b9c8d2;
+  --ring: #006b50;
+  --gain: #006b50;
+  --gain-soft: #e0f2e9;
+  --brand: #006b50;
+  --brand-soft: #e0f2e9;
   --chart-1: oklch(0.74 0.09 272);
   --chart-2: oklch(0.78 0.1 200);
   --chart-3: oklch(0.72 0.04 285);
@@ -96,28 +96,28 @@
 }
 
 .dark {
-  --background: oklch(0.34 0.02 262);
-  --foreground: oklch(0.985 0.004 262);
-  --card: oklch(0.43 0.022 262);
-  --card-foreground: oklch(0.985 0.004 262);
-  --popover: oklch(0.47 0.022 262);
-  --popover-foreground: oklch(0.985 0.004 262);
-  --primary: oklch(0.62 0.14 272);
-  --primary-foreground: oklch(0.99 0.004 270);
-  --secondary: oklch(0.5 0.022 262);
-  --secondary-foreground: oklch(0.985 0.004 262);
-  --muted: oklch(0.48 0.02 262);
-  --muted-foreground: oklch(0.88 0.01 262);
-  --accent: oklch(0.5 0.045 272);
-  --accent-foreground: oklch(0.985 0.008 272);
-  --destructive: oklch(0.68 0.16 25);
-  --border: oklch(1 0 0 / 24%);
-  --input: oklch(1 0 0 / 28%);
-  --ring: oklch(0.62 0.14 272);
-  --gain: oklch(0.84 0.12 165);
-  --gain-soft: oklch(0.46 0.06 165);
-  --brand: oklch(0.84 0.1 272);
-  --brand-soft: oklch(0.5 0.05 272);
+  --background: #f3f7fa;
+  --foreground: #102b43;
+  --card: #ffffff;
+  --card-foreground: #102b43;
+  --popover: #ffffff;
+  --popover-foreground: #102b43;
+  --primary: #006b50;
+  --primary-foreground: #ffffff;
+  --secondary: #e7eef3;
+  --secondary-foreground: #102b43;
+  --muted: #e7eef3;
+  --muted-foreground: #506578;
+  --accent: #e0f2e9;
+  --accent-foreground: #006b50;
+  --destructive: oklch(0.55 0.18 25);
+  --border: #a8bdc9;
+  --input: #b9c8d2;
+  --ring: #006b50;
+  --gain: #006b50;
+  --gain-soft: #e0f2e9;
+  --brand: #006b50;
+  --brand-soft: #e0f2e9;
   --chart-1: oklch(0.74 0.09 272);
   --chart-2: oklch(0.78 0.1 200);
   --chart-3: oklch(0.72 0.04 285);
@@ -142,12 +142,6 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    background-image: radial-gradient(
-      ellipse 90% 42% at 50% -20%,
-      oklch(0.48 0.045 270 / 0.55),
-      transparent 70%
-    );
-    background-attachment: fixed;
   }
   h1,
   h2,

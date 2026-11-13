@@ -107,8 +107,14 @@ function EarningsNumberInput({
         if (!locked || pointerActive.current) return;
         onLockedAttempt();
       }}
-      onBlur={() => {
+      onBlur={(event) => {
+        const node = event.currentTarget;
+        const next = committed;
         setDraft(null);
+        // After blur, React can put the cleared text back. Restore the saved rate.
+        window.setTimeout(() => {
+          if (node.value !== next) node.value = next;
+        }, 0);
       }}
       onClick={() => {
         if (!locked) return;
